@@ -52,7 +52,7 @@ func main() {
 	outputPath := strings.Split(output, ",")
 	fmt.Printf("Resharding start, input: %v, output: %v\n", inputPathList, outputPath)
 	startTime := time.Now()
-	if len(outputPath) == 0 {
+	if len(outputPath) == 0 || output == "" {
 		sdb, err := shardingdb.OpenFile(inputPathList, nil)
 		if err != nil {
 			fmt.Println(err)
