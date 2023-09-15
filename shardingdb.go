@@ -121,7 +121,7 @@ func (sdb *ShardingDb) OpenTransaction() (Transaction, error) {
 
 func (sdb *ShardingDb) Write(batch Batch, wo *opt.WriteOptions) error {
 	//Split batch into multiple batches
-	batches, err := sdb.splitBatch(batch)
+	batches, err := splitBatch(batch, sdb.length, sdb.shardingFunc)
 	if err != nil {
 		return err
 	}
@@ -134,8 +134,8 @@ func (sdb *ShardingDb) Write(batch Batch, wo *opt.WriteOptions) error {
 	return nil
 }
 
-func (sdb *ShardingDb) splitBatch(batch Batch) (map[uint16]*leveldb.Batch, error) {
-	shardingBath := NewShardingBatch(sdb.length, sdb.shardingFunc)
+func splitBatch(batch Batch, length uint16, shardingFunc func(key []byte, max uint16) uint16) (map[uint16]*leveldb.Batch, error) {
+	shardingBath := NewShardingBatch(length, shardingFunc)
 	err := batch.Replay(shardingBath)
 	if err != nil {
 		return nil, err
