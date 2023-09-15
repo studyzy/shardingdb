@@ -120,13 +120,15 @@ func (sdb *ShardingDb) Stats(s *leveldb.DBStats) error {
 // @return leveldb.Sizes
 // @return error
 func (sdb *ShardingDb) SizeOf(ranges []util.Range) (leveldb.Sizes, error) {
-	result := make(leveldb.Sizes, 0)
+	result := make(leveldb.Sizes, len(ranges))
 	for _, dbHandle := range sdb.dbHandles {
 		sizes, err := dbHandle.SizeOf(ranges)
 		if err != nil {
 			return nil, err
 		}
-		result = append(result, sizes...)
+		for idx, size := range sizes {
+			result[idx] += size
+		}
 	}
 	return result, nil
 }
