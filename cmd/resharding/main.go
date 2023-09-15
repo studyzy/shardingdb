@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	goleveldb_sharding "github.com/studyzy/goleveldb-sharding"
+	"github.com/studyzy/shardingdb"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
@@ -29,12 +29,13 @@ func main() {
 		fmt.Println("-i parameters are required.")
 		return
 	}
-	inputPath := strings.Split(input, ",")
+	inputPathList := strings.Split(input, ",")
+
 	outputPath := strings.Split(output, ",")
-	fmt.Printf("Resharding start, input: %v, output: %v\n", inputPath, outputPath)
+	fmt.Printf("Resharding start, input: %v, output: %v\n", inputPathList, outputPath)
 	startTime := time.Now()
 	if len(outputPath) == 0 {
-		sdb, err := goleveldb_sharding.OpenFile(inputPath, nil)
+		sdb, err := shardingdb.OpenFile(inputPathList, nil)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -46,9 +47,9 @@ func main() {
 			return
 		}
 	} else {
-		inputs := make([]goleveldb_sharding.LevelDbHandle, len(inputPath))
-		for i := 0; i < len(inputPath); i++ {
-			db, err := leveldb.OpenFile(inputPath[i], nil)
+		inputs := make([]shardingdb.LevelDbHandle, len(inputPathList))
+		for i := 0; i < len(inputPathList); i++ {
+			db, err := leveldb.OpenFile(inputPathList[i], nil)
 			if err != nil {
 				fmt.Println(err)
 				return
@@ -56,13 +57,13 @@ func main() {
 			defer db.Close()
 			inputs[i] = db
 		}
-		sdb, err := goleveldb_sharding.OpenFile(outputPath, nil)
+		sdb, err := shardingdb.OpenFile(outputPath, nil)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
 		defer sdb.Close()
-		err = goleveldb_sharding.Migration(inputs, sdb)
+		err = shardingdb.Migration(inputs, sdb)
 		if err != nil {
 			fmt.Println(err)
 			return

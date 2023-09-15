@@ -1,4 +1,4 @@
-package goleveldb_sharding
+package shardingdb
 
 import (
 	"github.com/syndtr/goleveldb/leveldb"
