@@ -16,6 +16,22 @@ func getTempDir() string {
 	return path.Join(os.TempDir(), fmt.Sprintf("shardingdb_%d", time.Now().UnixNano()))
 }
 
+func initDb(n int) *ShardingDb {
+	dbHandles := make([]LevelDbHandle, n)
+	for i := 0; i < n; i++ {
+		db, err := leveldb.OpenFile(getTempDir(), nil)
+		if err != nil {
+			panic(err)
+		}
+		dbHandles[i] = db
+	}
+	db, err := NewShardingDb(MurmurSharding, dbHandles...)
+	if err != nil {
+		panic(err)
+	}
+	return db
+}
+
 func TestPutGet(t *testing.T) {
 	//create a new leveldb on temp dir
 	db1, err := leveldb.OpenFile(getTempDir(), nil)
@@ -23,7 +39,8 @@ func TestPutGet(t *testing.T) {
 	db2, err := leveldb.OpenFile(getTempDir(), nil)
 	assert.NoError(t, err)
 	// Create a new sharding db
-	db := NewShardingDb(Sha256Sharding, db1, db2)
+	db, err := NewShardingDb(Sha256Sharding, db1, db2)
+	assert.NoError(t, err)
 	defer db.Close()
 	// Put a key-value pair
 	err = db.Put([]byte("key"), []byte("value"), nil)
@@ -41,21 +58,14 @@ func TestPutGet(t *testing.T) {
 }
 
 func TestBatchWriteAndIterator(t *testing.T) {
-	//create a new leveldb on temp dir
-	db1, err := leveldb.OpenFile(getTempDir(), nil)
-	assert.NoError(t, err)
-	db2, err := leveldb.OpenFile(getTempDir(), nil)
-	assert.NoError(t, err)
-	db3, err := leveldb.OpenFile(getTempDir(), nil)
-	assert.NoError(t, err)
 	// Create a new sharding db
-	db := NewShardingDb(MurmurSharding, db1, db2, db3)
+	db := initDb(3)
 	defer db.Close()
 	batch := new(leveldb.Batch)
 	for i := 0; i < 100; i++ {
 		batch.Put([]byte(fmt.Sprintf("key-%03d", i)), []byte(fmt.Sprintf("value-%03d", i)))
 	}
-	err = db.Write(batch, nil)
+	err := db.Write(batch, nil)
 	assert.NoError(t, err)
 	iter := db.NewIterator(util.BytesPrefix([]byte("key-02")), nil)
 	count := 0
@@ -72,4 +82,137 @@ func TestBatchWriteAndIterator(t *testing.T) {
 	size, err := db.SizeOf(ranges)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(size))
+	//test delete
+	err = db.Delete([]byte("key-021"), nil)
+	assert.NoError(t, err)
+	iter = db.NewIterator(util.BytesPrefix([]byte("key-02")), nil)
+	count = 0
+	//print iterator result
+	for iter.Next() {
+		fmt.Printf("key=%s, value=%s\n", iter.Key(), iter.Value())
+		count++
+	}
+	assert.Equal(t, 9, count)
+}
+func TestShardingDb_Resharding(t *testing.T) {
+	db1, err := leveldb.OpenFile(getTempDir(), nil)
+	assert.NoError(t, err)
+	batch := new(leveldb.Batch)
+	for i := 0; i < 100; i++ {
+		batch.Put([]byte(fmt.Sprintf("key-%03d", i)), []byte(fmt.Sprintf("value-%03d", i)))
+	}
+	err = db1.Write(batch, nil)
+	assert.NoError(t, err)
+	db2, _ := leveldb.OpenFile(getTempDir(), nil)
+	db3, _ := leveldb.OpenFile(getTempDir(), nil)
+	db, err := NewShardingDb(MurmurSharding, db1, db2, db3)
+	assert.NoError(t, err)
+	defer db.Close()
+	count := 0
+	for i := 0; i < 10; i++ {
+		value, err := db.Get([]byte(fmt.Sprintf("key-%03d", i)), nil)
+		if err == nil {
+			count++
+			fmt.Printf("key=%s, value=%s\n", fmt.Sprintf("key-%03d", i), value)
+		}
+	}
+	assert.NotEqual(t, 10, count)
+	err = db.Resharding()
+	assert.NoError(t, err)
+	count = 0
+	for i := 0; i < 10; i++ {
+		value, err := db.Get([]byte(fmt.Sprintf("key-%03d", i)), nil)
+		if err == nil {
+			count++
+			fmt.Printf("key=%s, value=%s\n", fmt.Sprintf("key-%03d", i), value)
+		}
+	}
+	assert.Equal(t, 10, count)
+}
+
+func TestShardingDb_Transaction(t *testing.T) {
+	db := initDb(2)
+	defer db.Close()
+	//create a transaction
+	tx1, err := db.OpenTransaction()
+	assert.NoError(t, err)
+	batch := new(leveldb.Batch)
+	for i := 0; i < 50; i++ {
+		if i%2 == 0 {
+			tx1.Put([]byte(fmt.Sprintf("key-%03d", i)), []byte(fmt.Sprintf("value-%03d", i)), nil)
+		} else {
+			batch.Put([]byte(fmt.Sprintf("key-%03d", i)), []byte(fmt.Sprintf("value-%03d", i)))
+		}
+	}
+	//get tx iterator
+	iter := tx1.NewIterator(util.BytesPrefix([]byte("key-02")), nil)
+	count := 0
+	for iter.Next() {
+		fmt.Printf("key=%s, value=%s\n", iter.Key(), iter.Value())
+		count++
+	}
+	assert.Equal(t, 5, count)
+	err = tx1.Write(batch, nil)
+	assert.NoError(t, err)
+	//get tx iterator after write batch
+	iter = tx1.NewIterator(util.BytesPrefix([]byte("key-02")), nil)
+	count = 0
+	for iter.Next() {
+		fmt.Printf("key=%s, value=%s\n", iter.Key(), iter.Value())
+		count++
+	}
+	assert.Equal(t, 10, count)
+	//query from db before commit tx
+	iter = db.NewIterator(util.BytesPrefix([]byte("key-02")), nil)
+	count = 0
+	for iter.Next() {
+		fmt.Printf("key=%s, value=%s\n", iter.Key(), iter.Value())
+		count++
+	}
+	assert.Equal(t, 0, count)
+	err = tx1.Commit()
+	assert.NoError(t, err)
+	//query from db after commit tx
+	iter = db.NewIterator(util.BytesPrefix([]byte("key-02")), nil)
+	count = 0
+	for iter.Next() {
+		fmt.Printf("key=%s, value=%s\n", iter.Key(), iter.Value())
+		count++
+	}
+	assert.Equal(t, 10, count)
+}
+func TestShardingDb_Snapshot(t *testing.T) {
+	db := initDb(2)
+	defer db.Close()
+
+	batch := new(leveldb.Batch)
+	for i := 0; i < 50; i++ {
+		batch.Put([]byte(fmt.Sprintf("key-%03d", i)), []byte(fmt.Sprintf("value-%03d", i)))
+	}
+	err := db.Write(batch, nil)
+	assert.NoError(t, err)
+	snapshot, err := db.GetSnapshot()
+	assert.NoError(t, err)
+	batch = new(leveldb.Batch)
+	for i := 50; i < 100; i++ {
+		batch.Put([]byte(fmt.Sprintf("key-%03d", i)), []byte(fmt.Sprintf("value-%03d", i)))
+	}
+	err = db.Write(batch, nil)
+	assert.NoError(t, err)
+	//get snapshot iterator
+	iter := snapshot.NewIterator(util.BytesPrefix([]byte("key-")), nil)
+	count := 0
+	for iter.Next() {
+		fmt.Printf("key=%s, value=%s\n", iter.Key(), iter.Value())
+		count++
+	}
+	assert.Equal(t, 50, count)
+	//get db iterator
+	iter = db.NewIterator(util.BytesPrefix([]byte("key-")), nil)
+	count = 0
+	for iter.Next() {
+		count++
+	}
+	assert.Equal(t, 100, count)
+
 }

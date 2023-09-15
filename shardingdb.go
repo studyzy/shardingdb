@@ -20,25 +20,6 @@ type ShardingDb struct {
 	lock         *sync.RWMutex
 }
 
-// NewShardingDb creates a new ShardingDb
-// @param shardingFunc
-// @param dbHandles
-// @return *ShardingDb
-func NewShardingDb(shardingFunc func(key []byte, max uint16) uint16, dbHandles ...LevelDbHandle) *ShardingDb {
-	if len(dbHandles) == 0 {
-		panic("dbHandles is empty")
-	}
-	if len(dbHandles) > 65535 {
-		panic("dbHandles is too large")
-	}
-	return &ShardingDb{
-		dbHandles:    dbHandles,
-		length:       uint16(len(dbHandles)),
-		shardingFunc: shardingFunc,
-		lock:         new(sync.RWMutex),
-	}
-}
-
 // Get get value by key
 // @param key
 // @param ro
@@ -159,7 +140,7 @@ func (sdb *ShardingDb) OpenTransaction() (Transaction, error) {
 		}
 		allTx[idx] = tx
 	}
-	return ShardingTransaction{dbHandles: allTx, length: sdb.length, shardingFunc: sdb.shardingFunc, lock: sdb.lock}, nil
+	return ShardingTransaction{txHandles: allTx, length: sdb.length, shardingFunc: sdb.shardingFunc, lock: sdb.lock}, nil
 }
 
 // Write write batch
@@ -174,7 +155,7 @@ func (sdb *ShardingDb) Write(batch Batch, wo *opt.WriteOptions) error {
 	if err != nil {
 		return err
 	}
-	//Write batches to different dbHandles
+	//Write batches to different txHandles
 	for idx, b := range batches {
 		if err := sdb.dbHandles[idx].Write(b, wo); err != nil {
 			return err
@@ -201,6 +182,7 @@ func (sdb *ShardingDb) Put(key, value []byte, wo *opt.WriteOptions) error {
 	sdb.lock.Lock()
 	defer sdb.lock.Unlock()
 	dbIndex := sdb.shardingFunc(key, sdb.length)
+
 	return sdb.dbHandles[dbIndex].Put(key, value, wo)
 }
 
@@ -240,7 +222,7 @@ func (sdb *ShardingDb) SetReadOnly() error {
 	return nil
 }
 
-// Resharding changed leveldb count, reorganize all data
+// Resharding changed leveldb count, reorganize all data in the original leveldb
 // @return error
 func (sdb *ShardingDb) Resharding() error {
 	sdb.lock.Lock()

@@ -123,3 +123,6 @@ type Batch interface {
 	// Reset resets the batch contents.
 	Reset()
 }
+type Logger interface {
+	Debug(msg string)
+}

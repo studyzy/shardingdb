@@ -1,6 +1,7 @@
 package goleveldb_sharding
 
 import (
+	"errors"
 	"sync"
 
 	"github.com/syndtr/goleveldb/leveldb"
@@ -11,7 +12,7 @@ import (
 )
 
 type ShardingTransaction struct {
-	dbHandles    []Transaction
+	txHandles    []Transaction
 	length       uint16
 	shardingFunc func(key []byte, max uint16) uint16
 	lock         *sync.RWMutex
@@ -19,17 +20,17 @@ type ShardingTransaction struct {
 
 func (s ShardingTransaction) Get(key []byte, ro *opt.ReadOptions) ([]byte, error) {
 	dbIndex := s.shardingFunc(key, s.length)
-	return s.dbHandles[dbIndex].Get(key, ro)
+	return s.txHandles[dbIndex].Get(key, ro)
 }
 
 func (s ShardingTransaction) Has(key []byte, ro *opt.ReadOptions) (bool, error) {
 	dbIndex := s.shardingFunc(key, s.length)
-	return s.dbHandles[dbIndex].Has(key, ro)
+	return s.txHandles[dbIndex].Has(key, ro)
 }
 
 func (s ShardingTransaction) NewIterator(slice *util.Range, ro *opt.ReadOptions) iterator.Iterator {
 	iters := make([]iterator.Iterator, s.length)
-	for idx, dbHandle := range s.dbHandles {
+	for idx, dbHandle := range s.txHandles {
 		iters[idx] = dbHandle.NewIterator(slice, ro)
 	}
 	return iterator.NewMergedIterator(iters, comparer.DefaultComparer, true)
@@ -37,12 +38,12 @@ func (s ShardingTransaction) NewIterator(slice *util.Range, ro *opt.ReadOptions)
 
 func (s ShardingTransaction) Put(key, value []byte, wo *opt.WriteOptions) error {
 	dbIndex := s.shardingFunc(key, s.length)
-	return s.dbHandles[dbIndex].Put(key, value, wo)
+	return s.txHandles[dbIndex].Put(key, value, wo)
 }
 
 func (s ShardingTransaction) Delete(key []byte, wo *opt.WriteOptions) error {
 	dbIndex := s.shardingFunc(key, s.length)
-	return s.dbHandles[dbIndex].Delete(key, wo)
+	return s.txHandles[dbIndex].Delete(key, wo)
 }
 
 func (s ShardingTransaction) Write(b *leveldb.Batch, wo *opt.WriteOptions) error {
@@ -51,9 +52,9 @@ func (s ShardingTransaction) Write(b *leveldb.Batch, wo *opt.WriteOptions) error
 	if err != nil {
 		return err
 	}
-	//Write batches to different dbHandles
+	//Write batches to different txHandles
 	for idx, b := range batches {
-		if err := s.dbHandles[idx].Write(b, wo); err != nil {
+		if err := s.txHandles[idx].Write(b, wo); err != nil {
 			return err
 		}
 	}
@@ -62,7 +63,10 @@ func (s ShardingTransaction) Write(b *leveldb.Batch, wo *opt.WriteOptions) error
 
 func (s ShardingTransaction) Commit() error {
 	defer s.lock.Unlock()
-	for _, dbHandle := range s.dbHandles {
+	if len(s.txHandles) == 0 {
+		return errors.New("no transaction to commit")
+	}
+	for _, dbHandle := range s.txHandles {
 		err := dbHandle.Commit()
 		if err != nil {
 			return err
@@ -73,7 +77,7 @@ func (s ShardingTransaction) Commit() error {
 
 func (s ShardingTransaction) Discard() {
 	defer s.lock.Unlock()
-	for _, dbHandle := range s.dbHandles {
+	for _, dbHandle := range s.txHandles {
 		dbHandle.Discard()
 	}
 }
