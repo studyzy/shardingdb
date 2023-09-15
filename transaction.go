@@ -1,6 +1,8 @@
 package goleveldb_sharding
 
 import (
+	"sync"
+
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/comparer"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
@@ -12,6 +14,7 @@ type ShardingTransaction struct {
 	dbHandles    []Transaction
 	length       uint16
 	shardingFunc func(key []byte, max uint16) uint16
+	lock         *sync.RWMutex
 }
 
 func (s ShardingTransaction) Get(key []byte, ro *opt.ReadOptions) ([]byte, error) {
@@ -58,6 +61,7 @@ func (s ShardingTransaction) Write(b *leveldb.Batch, wo *opt.WriteOptions) error
 }
 
 func (s ShardingTransaction) Commit() error {
+	defer s.lock.Unlock()
 	for _, dbHandle := range s.dbHandles {
 		err := dbHandle.Commit()
 		if err != nil {
@@ -68,6 +72,7 @@ func (s ShardingTransaction) Commit() error {
 }
 
 func (s ShardingTransaction) Discard() {
+	defer s.lock.Unlock()
 	for _, dbHandle := range s.dbHandles {
 		dbHandle.Discard()
 	}

@@ -16,7 +16,7 @@ type ShardingSnapshot struct {
 }
 
 func (s ShardingSnapshot) String() string {
-	result := []string{}
+	var result []string
 	for _, dbHandle := range s.dbHandles {
 		result = append(result, dbHandle.String())
 	}
