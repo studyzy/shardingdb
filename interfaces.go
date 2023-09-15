@@ -141,4 +141,5 @@ type Batch interface {
 }
 type Logger interface {
 	Debug(msg string)
+	Info(msg string)
 }

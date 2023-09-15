@@ -68,21 +68,32 @@ func OpenFile(path []string, o *opt.Options) (db *ShardingDb, err error) {
 // @param sdb
 // @return error
 func Migration(dbReaders []LevelDbHandle, sdb *ShardingDb) error {
+	sdb.lock.Lock()
+	defer sdb.lock.Unlock()
+	wg := sync.WaitGroup{}
 	for i, dbHandle := range dbReaders {
-		iter := dbHandle.NewIterator(nil, nil)
-
-		for iter.Next() {
-			key := iter.Key()
-			value := iter.Value()
-			dbIndex := sdb.shardingFunc(key, sdb.length)
-			if dbIndex != uint16(i) {
+		wg.Add(1)
+		dbReader := dbHandle
+		//concurrent resharding
+		go func(index int) {
+			defer wg.Done()
+			iter := dbReader.NewIterator(nil, nil)
+			sdb.Infof("Resharding db[%d]", index)
+			for iter.Next() {
+				key := iter.Key()
+				value := iter.Value()
+				dbIndex := sdb.shardingFunc(key, sdb.length)
+				//put data to new db
+				sdb.Debugf("Move kv from db[%d] to db[%d]", index, dbIndex)
 				if err := sdb.dbHandles[dbIndex].Put(key, value, nil); err != nil {
 					iter.Release()
-					return err
+					panic(err)
 				}
 			}
-		}
-		iter.Release()
+			iter.Release()
+			sdb.Infof("Resharding db[%d] finished", index)
+		}(i)
 	}
+	wg.Wait()
 	return nil
 }

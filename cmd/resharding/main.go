@@ -30,13 +30,15 @@ import (
 func main() {
 	var input string
 	var output string
+	var logType int
 
+	flag.IntVar(&logType, "l", 0, "log type: 0(default) - no log, 1 - summary log, 2 - detail log")
 	flag.StringVar(&input, "i", "", "input: leveldb path list, separated by comma")
 	flag.StringVar(&output, "o", "", "output: new leveldb path list, separated by comma")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s -i [old leveldb path] -o [new leveldb path]\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "Keep old leveldb path resharding example: %s -i /data1,/newfolder1\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "Resharding old leveldb to new path example: %s -i /data1 -o /newfolder1,/newfolder2\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Resharding old leveldb to new path example, and print summary log: %s -i /data1 -o /newfolder1,/newfolder2 -l 1\n", os.Args[0])
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -56,6 +58,8 @@ func main() {
 			fmt.Println(err)
 			return
 		}
+		//set logger
+		sdb.Logger = getLogger(logType)
 		defer sdb.Close()
 		err = sdb.Resharding()
 		if err != nil {
@@ -78,6 +82,8 @@ func main() {
 			fmt.Println(err)
 			return
 		}
+		sdb.Logger = getLogger(logType)
+
 		defer sdb.Close()
 		err = shardingdb.Migration(inputs, sdb)
 		if err != nil {
@@ -86,4 +92,43 @@ func main() {
 		}
 	}
 	fmt.Printf("Resharding finished, cost %v\n", time.Now().Sub(startTime))
+}
+
+func getLogger(logType int) shardingdb.Logger {
+	switch logType {
+	case 0:
+		return nil
+	case 1:
+		return &summaryLogger{period: 10000}
+	case 2:
+		return &consoleLogger{}
+	default:
+		return nil
+	}
+}
+
+type consoleLogger struct {
+}
+
+func (l *consoleLogger) Debug(msg string) {
+	fmt.Println("[DEBUG] ", msg)
+}
+func (l *consoleLogger) Info(msg string) {
+	fmt.Println("[INFO] ", msg)
+}
+
+type summaryLogger struct {
+	count  uint64
+	period uint64
+}
+
+func (l *summaryLogger) Debug(msg string) {
+	l.count++
+	if l.count%l.period == 0 {
+		fmt.Println("[INFO] processed ", l.count, " k/vs")
+	}
+}
+func (l *summaryLogger) Info(msg string) {
+	fmt.Println("[INFO] ", msg)
+	fmt.Println("[INFO] processed ", l.count, " k/vs")
 }

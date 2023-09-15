@@ -17,21 +17,23 @@ make
 cd bin
 ```
 #### 1.1 Migrate data from LevelDB to new shardingdb
-For example, if you have 1 LevelDB data and want to migrate it to 3 shardingdb data:
+For example, if you have 1 LevelDB data and want to migrate it to 3 shardingdb data, print summary log(1), you can run the following command:
 ```bash
-./resharding -i /data1 -o /newfolder1,/newfolder2,/newfolder3 
+./resharding -i /data1 -o /newfolder1,/newfolder2,/newfolder3 -l 1
 ```
 #### 1.2 Add sharding db
-For example, if you have 1 LevelDB data and want to add 2 more LevelDB folders to shardingdb:
+For example, if you have 1 LevelDB data and want to add 2 more LevelDB folders to shardingdb, print no log(0), you can run the following command:
+```bash
 
 ```bash
 ./resharding -i /data1 -o /data1,/data2,/data3 
 ```
 
-For example, if you have 3 LevelDB data and want to add 1 more LevelDB folder to shardingdb:
+For example, if you have 3 LevelDB data and want to add 1 more LevelDB folder to shardingdb, print detail log(2), you can run the following command:
+```bash
 
 ```bash
-./resharding -i /data1,/data2,/data3 -o /data1,/data2,/data3,/data4
+./resharding -i /data1,/data2,/data3 -o /data1,/data2,/data3,/data4 -l 2
 ```
 
 ### 2. Code example
@@ -51,7 +53,7 @@ sdb.Put([]byte("key"), []byte("value"), nil)
 sdb.Get([]byte("key"), nil)
 ...
 ```
-### 2.3 another example
+### 2.3 Another example
 ```go
 db1, err := leveldb.OpenFile(getTempDir(), nil)
 if err != nil {
@@ -67,4 +69,4 @@ sdb, err := NewShardingDb(Sha256Sharding, db1, db2)
 ```
 
 
-Most interfaces are the same as [goleveldb](https://github.com/syndtr/goleveldb). For my interface definition, please refer to [DbHandle](https://github.com/studyzy/goleveldb-sharding/blob/main/interfaces.go).
+Most interfaces are the same as [goleveldb](https://github.com/syndtr/goleveldb). For my interface definition, please refer to [DbHandle](https://github.com/studyzy/shardingdb/blob/main/interfaces.go).

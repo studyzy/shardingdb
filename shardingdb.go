@@ -17,6 +17,7 @@
 package shardingdb
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 
@@ -34,6 +35,7 @@ type ShardingDb struct {
 	length       uint16
 	shardingFunc func(key []byte, max uint16) uint16
 	lock         *sync.RWMutex
+	Logger       Logger
 }
 
 // Get get value by key
@@ -238,6 +240,24 @@ func (sdb *ShardingDb) SetReadOnly() error {
 	return nil
 }
 
+// Debugf log debug
+// @param msg
+// @param a
+func (sdb *ShardingDb) Debugf(msg string, a ...interface{}) {
+	if sdb.Logger != nil {
+		sdb.Logger.Debug(fmt.Sprintf(msg, a...))
+	}
+}
+
+// Infof log info
+// @param msg
+// @param a
+func (sdb *ShardingDb) Infof(msg string, a ...interface{}) {
+	if sdb.Logger != nil {
+		sdb.Logger.Info(fmt.Sprintf(msg, a...))
+	}
+}
+
 // Resharding changed leveldb count, reorganize all data in the original leveldb
 // @return error
 func (sdb *ShardingDb) Resharding() error {
@@ -245,12 +265,13 @@ func (sdb *ShardingDb) Resharding() error {
 	defer sdb.lock.Unlock()
 	for i, dbHandle := range sdb.dbHandles {
 		iter := dbHandle.NewIterator(nil, nil)
-
+		sdb.Infof("Resharding db[%d]", i)
 		for iter.Next() {
 			key := iter.Key()
 			value := iter.Value()
 			dbIndex := sdb.shardingFunc(key, sdb.length)
 			if dbIndex != uint16(i) {
+				sdb.Debugf("Move kv from db[%d] to db[%d]", i, dbIndex)
 				if err := sdb.dbHandles[dbIndex].Put(key, value, nil); err != nil {
 					iter.Release()
 					return err
@@ -261,6 +282,7 @@ func (sdb *ShardingDb) Resharding() error {
 				}
 			}
 		}
+		sdb.Infof("Resharding db[%d] finished", i)
 		iter.Release()
 	}
 	return nil
