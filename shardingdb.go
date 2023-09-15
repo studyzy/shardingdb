@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/syndtr/goleveldb/leveldb/comparer"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 	"github.com/syndtr/goleveldb/leveldb/util"
@@ -48,7 +49,8 @@ func (sdb *ShardingDb) NewIterator(slice *util.Range, ro *opt.ReadOptions) itera
 	for _, dbHandle := range sdb.dbHandles {
 		iterators = append(iterators, dbHandle.NewIterator(slice, ro))
 	}
-	return MergedIterator{iterators: iterators}
+	return iterator.NewMergedIterator(iterators, comparer.DefaultComparer, true)
+
 }
 
 func (sdb *ShardingDb) GetSnapshot() (Snapshot, error) {
@@ -119,7 +121,10 @@ func (sdb *ShardingDb) OpenTransaction() (Transaction, error) {
 
 func (sdb *ShardingDb) Write(batch Batch, wo *opt.WriteOptions) error {
 	//Split batch into multiple batches
-	batches := splitBatch(batch)
+	batches, err := sdb.splitBatch(batch)
+	if err != nil {
+		return err
+	}
 	//Write batches to different dbHandles
 	for idx, b := range batches {
 		if err := sdb.dbHandles[idx].Write(b, wo); err != nil {
@@ -129,9 +134,13 @@ func (sdb *ShardingDb) Write(batch Batch, wo *opt.WriteOptions) error {
 	return nil
 }
 
-func splitBatch(batch Batch) map[uint16]*leveldb.Batch {
-	//TODO implement me
-	panic("implement me")
+func (sdb *ShardingDb) splitBatch(batch Batch) (map[uint16]*leveldb.Batch, error) {
+	shardingBath := NewShardingBatch(sdb.length, sdb.shardingFunc)
+	err := batch.Replay(shardingBath)
+	if err != nil {
+		return nil, err
+	}
+	return shardingBath.GetSplitBatch(), nil
 }
 
 func (sdb *ShardingDb) Put(key, value []byte, wo *opt.WriteOptions) error {
