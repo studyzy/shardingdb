@@ -73,9 +73,8 @@ func Migration(dbReaders []LevelDbHandle, sdb *ShardingDb) error {
 	wg := sync.WaitGroup{}
 	for i, dbHandle := range dbReaders {
 		wg.Add(1)
-		dbReader := dbHandle
 		//concurrent resharding
-		go func(index int) {
+		go func(index int, dbReader LevelDbHandle) {
 			defer wg.Done()
 			iter := dbReader.NewIterator(nil, nil)
 			sdb.Infof("Resharding db[%d]", index)
@@ -92,7 +91,7 @@ func Migration(dbReaders []LevelDbHandle, sdb *ShardingDb) error {
 			}
 			iter.Release()
 			sdb.Infof("Resharding db[%d] finished", index)
-		}(i)
+		}(i, dbHandle)
 	}
 	wg.Wait()
 	return nil

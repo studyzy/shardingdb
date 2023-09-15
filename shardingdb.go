@@ -263,27 +263,45 @@ func (sdb *ShardingDb) Infof(msg string, a ...interface{}) {
 func (sdb *ShardingDb) Resharding() error {
 	sdb.lock.Lock()
 	defer sdb.lock.Unlock()
-	for i, dbHandle := range sdb.dbHandles {
-		iter := dbHandle.NewIterator(nil, nil)
-		sdb.Infof("Resharding db[%d]", i)
-		for iter.Next() {
-			key := iter.Key()
-			value := iter.Value()
-			dbIndex := sdb.shardingFunc(key, sdb.length)
-			if dbIndex != uint16(i) {
-				sdb.Debugf("Move kv from db[%d] to db[%d]", i, dbIndex)
-				if err := sdb.dbHandles[dbIndex].Put(key, value, nil); err != nil {
-					iter.Release()
-					return err
-				}
-				if err := dbHandle.Delete(key, nil); err != nil {
-					iter.Release()
-					return err
+	//get all snapshots
+	snapshots := make([]Snapshot, sdb.length)
+	for idx, dbHandle := range sdb.dbHandles {
+		snapshot, err := dbHandle.GetSnapshot()
+		if err != nil {
+			return err
+		}
+		snapshots[idx] = snapshot
+	}
+	wg := sync.WaitGroup{}
+	for x, snapshot := range snapshots {
+		wg.Add(1)
+		//concurrent resharding
+		go func(index int, dbReader Snapshot) {
+			defer wg.Done()
+			iter := dbReader.NewIterator(nil, nil)
+			sdb.Infof("Resharding db[%d]", index)
+			for iter.Next() {
+				key := iter.Key()
+				value := iter.Value()
+				dbIndex := sdb.shardingFunc(key, sdb.length)
+				if dbIndex != uint16(index) {
+					sdb.Debugf("Move kv from db[%d] to db[%d]", index, dbIndex)
+					if err := sdb.dbHandles[dbIndex].Put(key, value, nil); err != nil {
+						iter.Release()
+						panic(err)
+					}
+					//delete data from old db
+					if err := sdb.dbHandles[index].Delete(key, nil); err != nil {
+						iter.Release()
+						panic(err)
+					}
 				}
 			}
-		}
-		sdb.Infof("Resharding db[%d] finished", i)
-		iter.Release()
+			sdb.Infof("Resharding db[%d] finished", index)
+			iter.Release()
+			dbReader.Release()
+		}(x, snapshot)
 	}
+	wg.Wait()
 	return nil
 }
