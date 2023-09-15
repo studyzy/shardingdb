@@ -37,7 +37,7 @@ For example, if you have 3 LevelDB data and want to add 1 more LevelDB folder to
 ### 2. Code example
 #### 2.0 Get the package
 ```go
-go get github.com/studyzy/goleveldb-sharding
+go get github.com/studyzy/shardingdb
 ```
 #### 2.1 Import the package
 ```go
