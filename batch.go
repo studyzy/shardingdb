@@ -19,35 +19,45 @@ package shardingdb
 import "github.com/syndtr/goleveldb/leveldb"
 
 type ShardingBatch struct {
-	dbHandles    []*leveldb.Batch
+	batchHandles []*leveldb.Batch
 	length       uint16
 	shardingFunc func(key []byte, max uint16) uint16
+	encryptor    Encryptor
 }
 
-func NewShardingBatch(len uint16, shardingFunc func(key []byte, max uint16) uint16) *ShardingBatch {
+func NewShardingBatch(len uint16, shardingFunc func(key []byte, max uint16) uint16, e Encryptor) *ShardingBatch {
 	batches := make([]*leveldb.Batch, len)
 	for i := uint16(0); i < len; i++ {
 		batches[i] = new(leveldb.Batch)
 	}
 	return &ShardingBatch{
-		dbHandles:    batches,
+		batchHandles: batches,
 		length:       len,
 		shardingFunc: shardingFunc,
+		encryptor:    e,
 	}
 }
 
 func (s *ShardingBatch) Put(key, value []byte) {
 	dbIndex := s.shardingFunc(key, s.length)
-	s.dbHandles[dbIndex].Put(key, value)
+	if s.encryptor != nil && len(value) > 0 {
+		evalue, err := s.encryptor.Encrypt(value)
+		if err != nil {
+			panic(err)
+		}
+		s.batchHandles[dbIndex].Put(key, evalue)
+	} else {
+		s.batchHandles[dbIndex].Put(key, value)
+	}
 }
 
 func (s *ShardingBatch) Delete(key []byte) {
 	dbIndex := s.shardingFunc(key, s.length)
-	s.dbHandles[dbIndex].Delete(key)
+	s.batchHandles[dbIndex].Delete(key)
 }
 func (s *ShardingBatch) GetSplitBatch() map[uint16]*leveldb.Batch {
 	batches := make(map[uint16]*leveldb.Batch)
-	for idx, dbHandle := range s.dbHandles {
+	for idx, dbHandle := range s.batchHandles {
 		if dbHandle.Len() != 0 {
 			batches[uint16(idx)] = dbHandle
 		}

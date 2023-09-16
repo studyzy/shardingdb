@@ -49,7 +49,7 @@ func (sdb *ShardingDb) Get(key []byte, ro *opt.ReadOptions) (value []byte, err e
 	dbIndex := sdb.shardingFunc(key, sdb.length)
 	// 1 data replication, no need to merge
 	if sdb.replication <= 1 {
-		return sdb.dbHandles[dbIndex].Get(key, ro)
+		return sdb.get(sdb.dbHandles[dbIndex], key, ro)
 	}
 
 	// 2 or more data replication, merge data
@@ -59,7 +59,7 @@ func (sdb *ShardingDb) Get(key []byte, ro *opt.ReadOptions) (value []byte, err e
 	// get data from different db
 	for i := uint16(0); i < sdb.replication; i++ {
 		go func(index uint16) {
-			res, err := sdb.dbHandles[(dbIndex+index)%sdb.length].Get(key, ro)
+			res, err := sdb.get(sdb.dbHandles[(dbIndex+index)%sdb.length], key, ro)
 			if err != nil {
 				errChan <- err
 			} else {
@@ -143,7 +143,11 @@ func (sdb *ShardingDb) NewIterator(slice *util.Range, ro *opt.ReadOptions) itera
 	for _, dbHandle := range sdb.dbHandles {
 		iterators = append(iterators, dbHandle.NewIterator(slice, ro))
 	}
-	return iterator.NewMergedIterator(iterators, comparer.DefaultComparer, true)
+	miter := iterator.NewMergedIterator(iterators, comparer.DefaultComparer, true)
+	if sdb.encryptor != nil {
+		return &encryptIterator{iter: miter, encryptor: sdb.encryptor}
+	}
+	return miter
 
 }
 
@@ -159,7 +163,12 @@ func (sdb *ShardingDb) GetSnapshot() (Snapshot, error) {
 		}
 		allSnapshots[idx] = snapshot
 	}
-	return ShardingSnapshot{dbHandles: allSnapshots, length: sdb.length, shardingFunc: sdb.shardingFunc}, nil
+	return ShardingSnapshot{
+		dbHandles:    allSnapshots,
+		length:       sdb.length,
+		shardingFunc: sdb.shardingFunc,
+		encryptor:    sdb.encryptor,
+	}, nil
 }
 
 // GetProperty get property
@@ -248,7 +257,7 @@ func (sdb *ShardingDb) Write(batch Batch, wo *opt.WriteOptions) error {
 	defer sdb.lock.Unlock()
 
 	// Split batch into multiple batches
-	batches, err := splitBatch(batch, sdb.length, sdb.shardingFunc)
+	batches, err := splitBatch(batch, sdb.length, sdb.shardingFunc, sdb.encryptor)
 	if err != nil {
 		return err
 	}
@@ -300,8 +309,8 @@ func (sdb *ShardingDb) Write(batch Batch, wo *opt.WriteOptions) error {
 	return nil
 }
 
-func splitBatch(batch Batch, length uint16, shardingFunc func(key []byte, max uint16) uint16) (map[uint16]*leveldb.Batch, error) {
-	shardingBath := NewShardingBatch(length, shardingFunc)
+func splitBatch(batch Batch, length uint16, shardingFunc func(key []byte, max uint16) uint16, e Encryptor) (map[uint16]*leveldb.Batch, error) {
+	shardingBath := NewShardingBatch(length, shardingFunc, e)
 	err := batch.Replay(shardingBath)
 	if err != nil {
 		return nil, err
@@ -322,7 +331,7 @@ func (sdb *ShardingDb) Put(key, value []byte, wo *opt.WriteOptions) error {
 	dbIndex := sdb.shardingFunc(key, sdb.length)
 
 	if sdb.replication <= 1 {
-		return sdb.dbHandles[dbIndex].Put(key, value, wo)
+		return sdb.put(sdb.dbHandles[dbIndex], key, value, wo)
 	}
 
 	// Create a channel to receive errors
@@ -334,7 +343,7 @@ func (sdb *ShardingDb) Put(key, value []byte, wo *opt.WriteOptions) error {
 		wg.Add(1)
 		go func(index uint16) {
 			defer wg.Done()
-			err := sdb.dbHandles[(dbIndex+index)%sdb.length].Put(key, value, wo)
+			err := sdb.put(sdb.dbHandles[(dbIndex+index)%sdb.length], key, value, wo)
 			errChan <- err
 		}(i)
 	}
