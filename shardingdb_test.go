@@ -41,7 +41,11 @@ func initDb(n int) *ShardingDb {
 		}
 		dbHandles[i] = db
 	}
-	db, err := NewShardingDb(WithDbHandles(dbHandles...))
+
+	db, err := NewShardingDb(
+		WithDbHandles(dbHandles...),
+		WithEncryptor(NewAESCryptor([]byte("1234567890123456"))),
+	)
 	if err != nil {
 		panic(err)
 	}
@@ -73,6 +77,18 @@ func TestPutGet(t *testing.T) {
 	assert.Nil(t, noValue)
 }
 
+func getCount(db DbHandle, print bool) int {
+	iter := db.NewIterator(nil, nil)
+	count := 0
+	for iter.Next() {
+		count++
+		if print {
+			fmt.Printf("key=%s, value=%s\n", iter.Key(), iter.Value())
+		}
+	}
+	return count
+}
+
 func TestBatchWriteAndIterator(t *testing.T) {
 	// Create a new sharding db
 	db := initDb(3)
@@ -83,6 +99,7 @@ func TestBatchWriteAndIterator(t *testing.T) {
 	}
 	err := db.Write(batch, nil)
 	assert.NoError(t, err)
+	assert.Equal(t, 100, getCount(db, false))
 	iter := db.NewIterator(util.BytesPrefix([]byte("key-02")), nil)
 	count := 0
 	//print iterator result

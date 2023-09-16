@@ -32,11 +32,22 @@ type ShardingTransaction struct {
 	length       uint16
 	shardingFunc func(key []byte, max uint16) uint16
 	lock         *sync.RWMutex
+	encryptor    Encryptor
 }
 
 func (s ShardingTransaction) Get(key []byte, ro *opt.ReadOptions) ([]byte, error) {
 	dbIndex := s.shardingFunc(key, s.length)
-	return s.txHandles[dbIndex].Get(key, ro)
+	val, err := s.txHandles[dbIndex].Get(key, ro)
+	if err != nil {
+		return nil, err
+	}
+	if s.encryptor != nil && len(val) > 0 {
+		val, err = s.encryptor.Decrypt(val)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return val, nil
 }
 
 func (s ShardingTransaction) Has(key []byte, ro *opt.ReadOptions) (bool, error) {
@@ -49,11 +60,23 @@ func (s ShardingTransaction) NewIterator(slice *util.Range, ro *opt.ReadOptions)
 	for idx, dbHandle := range s.txHandles {
 		iters[idx] = dbHandle.NewIterator(slice, ro)
 	}
-	return iterator.NewMergedIterator(iters, comparer.DefaultComparer, true)
+	miter := iterator.NewMergedIterator(iters, comparer.DefaultComparer, true)
+	if s.encryptor != nil {
+		return &encryptIterator{iter: miter, encryptor: s.encryptor}
+	}
+	return miter
 }
 
 func (s ShardingTransaction) Put(key, value []byte, wo *opt.WriteOptions) error {
 	dbIndex := s.shardingFunc(key, s.length)
+
+	if s.encryptor != nil && len(value) > 0 {
+		evalue, err := s.encryptor.Encrypt(value)
+		if err != nil {
+			return err
+		}
+		return s.txHandles[dbIndex].Put(key, evalue, wo)
+	}
 	return s.txHandles[dbIndex].Put(key, value, wo)
 }
 
@@ -64,13 +87,13 @@ func (s ShardingTransaction) Delete(key []byte, wo *opt.WriteOptions) error {
 
 func (s ShardingTransaction) Write(b *leveldb.Batch, wo *opt.WriteOptions) error {
 	//Split batch into multiple batches
-	batches, err := splitBatch(b, s.length, s.shardingFunc)
+	batches, err := splitBatch(b, s.length, s.shardingFunc, s.encryptor)
 	if err != nil {
 		return err
 	}
 	//Write batches to different txHandles
-	for idx, b := range batches {
-		if err := s.txHandles[idx].Write(b, wo); err != nil {
+	for idx, b1 := range batches {
+		if err := s.txHandles[idx].Write(b1, wo); err != nil {
 			return err
 		}
 	}

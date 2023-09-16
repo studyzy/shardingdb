@@ -29,6 +29,7 @@ type ShardingSnapshot struct {
 	dbHandles    []Snapshot
 	length       uint16
 	shardingFunc func(key []byte, max uint16) uint16
+	encryptor    Encryptor
 }
 
 func (s ShardingSnapshot) String() string {
@@ -41,7 +42,17 @@ func (s ShardingSnapshot) String() string {
 
 func (s ShardingSnapshot) Get(key []byte, ro *opt.ReadOptions) (value []byte, err error) {
 	dbIndex := s.shardingFunc(key, s.length)
-	return s.dbHandles[dbIndex].Get(key, ro)
+	val, err := s.dbHandles[dbIndex].Get(key, ro)
+	if err != nil {
+		return nil, err
+	}
+	if s.encryptor != nil && len(val) > 0 {
+		val, err = s.encryptor.Decrypt(val)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return val, nil
 }
 
 func (s ShardingSnapshot) Has(key []byte, ro *opt.ReadOptions) (ret bool, err error) {
@@ -54,7 +65,11 @@ func (s ShardingSnapshot) NewIterator(slice *util.Range, ro *opt.ReadOptions) it
 	for idx, dbHandle := range s.dbHandles {
 		iters[idx] = dbHandle.NewIterator(slice, ro)
 	}
-	return iterator.NewMergedIterator(iters, comparer.DefaultComparer, true)
+	miter := iterator.NewMergedIterator(iters, comparer.DefaultComparer, true)
+	if s.encryptor != nil {
+		return encryptIterator{iter: miter, encryptor: s.encryptor}
+	}
+	return miter
 }
 
 func (s ShardingSnapshot) Release() {
