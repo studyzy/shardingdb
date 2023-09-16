@@ -28,22 +28,31 @@ import (
 // @param shardingFunc
 // @param txHandles
 // @return *ShardingDb
-func NewShardingDb(shardingFunc func(key []byte, max uint16) uint16, dbHandles ...LevelDbHandle) (*ShardingDb, error) {
-	if len(dbHandles) == 0 {
+func NewShardingDb(options ...DbOption) (*ShardingDb, error) {
+	sdb := &ShardingDb{}
+	for _, opt := range options {
+		opt(sdb)
+	}
+	if len(sdb.dbHandles) == 0 {
 		return nil, errors.New("txHandles is empty")
 	}
-	if len(dbHandles) > 65535 {
+	if len(sdb.dbHandles) > 65535 {
 		return nil, errors.New("txHandles is too large")
 	}
-	return &ShardingDb{
-		dbHandles:    dbHandles,
-		length:       uint16(len(dbHandles)),
-		shardingFunc: shardingFunc,
-		lock:         new(sync.RWMutex),
-	}, nil
+	if sdb.shardingFunc == nil {
+		sdb.Infof("shardingFunc is nil, use default sharding function")
+		sdb.shardingFunc = MurmurSharding
+	}
+	if sdb.replication > sdb.length {
+		return nil, errors.New("replication is too large")
+	}
+	if sdb.replication == 0 {
+		sdb.replication = 1
+	}
+	return sdb, nil
 }
 
-// OpenFile opens multi db
+// OpenFile opens multi db,looks like leveldb.OpenFile
 // @param path
 // @param o
 // @return db
@@ -60,7 +69,7 @@ func OpenFile(path []string, o *opt.Options) (db *ShardingDb, err error) {
 			return nil, err
 		}
 	}
-	return NewShardingDb(MurmurSharding, dbs...)
+	return NewShardingDb(WithDbHandles(dbs...), WithShardingFunc(MurmurSharding))
 }
 
 // Migration changed leveldb count, reorganize all data to the new leveldb

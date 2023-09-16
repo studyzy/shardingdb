@@ -31,8 +31,10 @@ func main() {
 	var input string
 	var output string
 	var logType int
+	var replication int
 
 	flag.IntVar(&logType, "l", 0, "log type: 0(default) - no log, 1 - summary log, 2 - detail log")
+	flag.IntVar(&replication, "r", 1, "replication factor, default 1")
 	flag.StringVar(&input, "i", "", "input: leveldb path list, separated by comma")
 	flag.StringVar(&output, "o", "", "output: new leveldb path list, separated by comma")
 	flag.Usage = func() {
@@ -53,13 +55,16 @@ func main() {
 	fmt.Printf("Resharding start, input: %v, output: %v\n", inputPathList, outputPath)
 	startTime := time.Now()
 	if len(outputPath) == 0 || output == "" {
-		sdb, err := shardingdb.OpenFile(inputPathList, nil)
+		sdb, err := shardingdb.NewShardingDb(
+			shardingdb.WithDbPaths(inputPathList...),
+			shardingdb.WithShardingFunc(shardingdb.MurmurSharding),
+			shardingdb.WithLogger(getLogger(logType)),
+			shardingdb.WithReplication(uint16(replication)),
+		)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-		//set logger
-		sdb.Logger = getLogger(logType)
 		defer sdb.Close()
 		err = sdb.Resharding()
 		if err != nil {
@@ -77,13 +82,16 @@ func main() {
 			defer db.Close()
 			inputs[i] = db
 		}
-		sdb, err := shardingdb.OpenFile(outputPath, nil)
+		sdb, err := shardingdb.NewShardingDb(
+			shardingdb.WithDbPaths(outputPath...),
+			shardingdb.WithShardingFunc(shardingdb.MurmurSharding),
+			shardingdb.WithLogger(getLogger(logType)),
+			shardingdb.WithReplication(uint16(replication)),
+		)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-		sdb.Logger = getLogger(logType)
-
 		defer sdb.Close()
 		err = shardingdb.Migration(inputs, sdb)
 		if err != nil {
