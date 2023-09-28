@@ -31,7 +31,7 @@ import (
 )
 
 var (
-	thread      = 500
+	thread      = 100
 	loop        = 100
 	batchSize   = 1000
 	valueLength = 200
@@ -97,7 +97,8 @@ func TestShardingDbPerformance(t *testing.T) {
 	}
 
 	db, _ := OpenFile(pathList, nil)
-	fmt.Printf("start test shardingdb performance test,batch[%d] thread[%d] loop[%d],shardingdb length[%d]\n", batchSize, thread, loop, db.length)
+	fmt.Printf("start shardingdb performance test,batch[%d] thread[%d] loop[%d],sharding[%d]，record count:%d\n",
+		batchSize, thread, loop, db.length, batchSize*thread*loop)
 	wg := sync.WaitGroup{}
 	wg.Add(thread)
 	start := time.Now()
@@ -199,7 +200,8 @@ func TestShardingDbPerformance(t *testing.T) {
 }
 func TestLeveldbPerformance(t *testing.T) {
 	dir := getTempDir()
-	fmt.Println(dir)
+	fmt.Printf("start leveldb performance test,batch[%d] thread[%d] loop[%d],Path[%s]，record count:%d\n",
+		batchSize, thread, loop, dir, batchSize*thread*loop)
 	db, _ := leveldb.OpenFile(dir, nil)
 	wg := sync.WaitGroup{}
 	wg.Add(thread)
