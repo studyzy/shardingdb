@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"sync"
 	"testing"
 	"time"
 
@@ -44,7 +45,7 @@ func initDb(n int) *ShardingDb {
 
 	db, err := NewShardingDb(
 		WithDbHandles(dbHandles...),
-		WithEncryptor(NewAESCryptor([]byte("1234567890123456"))),
+		//WithEncryptor(NewAESCryptor([]byte("1234567890123456"))),
 	)
 	if err != nil {
 		panic(err)
@@ -284,4 +285,94 @@ func TestShardingDb_Iterator(t *testing.T) {
 	}
 	assert.Equal(t, 20, count)
 
+}
+func BenchmarkShardingDb_Put(b *testing.B) {
+	db := initDb(3)
+	defer db.Close()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		db.Put([]byte(fmt.Sprintf("key-%03d", i)), []byte(fmt.Sprintf("value-%03d", i)), nil)
+	}
+}
+func BenchmarkLevledb_Put(b *testing.B) {
+	db, err := leveldb.OpenFile(getTempDir(), nil)
+	assert.NoError(b, err)
+	defer db.Close()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		db.Put([]byte(fmt.Sprintf("key-%03d", i)), []byte(fmt.Sprintf("value-%03d", i)), nil)
+	}
+}
+func BenchmarkShardingDb_Get(b *testing.B) {
+	db := initDb(3)
+	defer db.Close()
+	for i := 0; i < 100000; i++ {
+		db.Put([]byte(fmt.Sprintf("key-%03d", i)), []byte(fmt.Sprintf("value-%03d", i)), nil)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		db.Get([]byte(fmt.Sprintf("key-%03d", i)), nil)
+	}
+}
+func BenchmarkLeveldb_Get(b *testing.B) {
+	db, err := leveldb.OpenFile(getTempDir(), nil)
+	assert.NoError(b, err)
+	defer db.Close()
+	for i := 0; i < 100000; i++ {
+		db.Put([]byte(fmt.Sprintf("key-%03d", i)), []byte(fmt.Sprintf("value-%03d", i)), nil)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		db.Get([]byte(fmt.Sprintf("key-%03d", i)), nil)
+	}
+}
+func TestWriteBatchPerformance(t *testing.T) {
+	thread := 10
+	loop := 100
+	batchSize := 1000
+	db, _ := OpenFile([]string{"/data/leveldb1", "/data1/leveldb2"}, nil)
+	defer db.Close()
+	wg := sync.WaitGroup{}
+	wg.Add(thread)
+	start := time.Now()
+	for i := 0; i < thread; i++ {
+		go func(thr int) {
+			defer wg.Done()
+			for j := 0; j < loop; j++ {
+				batch := new(leveldb.Batch)
+				for k := 0; k < batchSize; k++ {
+					batch.Put([]byte(fmt.Sprintf("key-%02d-%03d", thr, k)), []byte(fmt.Sprintf("value-%03d", k)))
+				}
+				err := db.Write(batch, nil)
+				assert.NoError(t, err)
+			}
+		}(i)
+	}
+	wg.Wait()
+	fmt.Printf("ShardingDb write batch[%d] thread[%d] loop[%d] cost:%v\n", batchSize, thread, loop, time.Now().Sub(start))
+}
+func TestLeveldbWriteBatchPerformance(t *testing.T) {
+	thread := 10
+	loop := 100
+	batchSize := 1000
+	db, _ := leveldb.OpenFile("/data/leveldb", nil)
+	defer db.Close()
+	wg := sync.WaitGroup{}
+	wg.Add(thread)
+	start := time.Now()
+	for i := 0; i < thread; i++ {
+		go func(thr int) {
+			defer wg.Done()
+			for j := 0; j < loop; j++ {
+				batch := new(leveldb.Batch)
+				for k := 0; k < batchSize; k++ {
+					batch.Put([]byte(fmt.Sprintf("key-%02d-%03d", thr, k)), []byte(fmt.Sprintf("value-%03d", k)))
+				}
+				err := db.Write(batch, nil)
+				assert.NoError(t, err)
+			}
+		}(i)
+	}
+	wg.Wait()
+	fmt.Printf("Leveldb write batch[%d] thread[%d] loop[%d] cost:%v\n", batchSize, thread, loop, time.Now().Sub(start))
 }
