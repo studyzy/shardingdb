@@ -18,7 +18,6 @@ package shardingdb
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
 	"sync"
 	"testing"
@@ -70,15 +69,20 @@ func BenchmarkLeveldb_Get(b *testing.B) {
 	}
 }
 
-const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-
-func randomString(seed int64, length int) string {
-	rand.Seed(seed)
+// const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+//
+//	func randomString(seed int64, length int) string {
+//		rand.Seed(seed)
+//		result := make([]byte, length)
+//		for i := range result {
+//			result[i] = charset[rand.Intn(len(charset))]
+//		}
+//		return string(result)
+//	}
+func stringToBytesWithPadding(s string, length int) []byte {
 	result := make([]byte, length)
-	for i := range result {
-		result[i] = charset[rand.Intn(len(charset))]
-	}
-	return string(result)
+	copy(result, []byte(s))
+	return result
 }
 
 var (
@@ -103,8 +107,8 @@ func TestShardingDbPerformance(t *testing.T) {
 			for j := 0; j < loop; j++ {
 				batch := new(leveldb.Batch)
 				for k := 0; k < batchSize; k++ {
-					value := randomString(int64(j*k*thr), valueLength)
-					batch.Put([]byte(fmt.Sprintf("key-%02d-%03d", thr, k)), []byte(value))
+					value := stringToBytesWithPadding(fmt.Sprintf("value-%3d", k), valueLength)
+					batch.Put([]byte(fmt.Sprintf("key-%02d-%03d", thr, k)), value)
 				}
 				err := db.Write(batch, nil)
 				assert.NoError(t, err)
@@ -181,8 +185,8 @@ func TestLeveldbPerformance(t *testing.T) {
 			for j := 0; j < loop; j++ {
 				batch := new(leveldb.Batch)
 				for k := 0; k < batchSize; k++ {
-					value := randomString(int64(j*k*thr), valueLength)
-					batch.Put([]byte(fmt.Sprintf("key-%02d-%03d", thr, k)), []byte(value))
+					value := stringToBytesWithPadding(fmt.Sprintf("value-%3d", k), valueLength)
+					batch.Put([]byte(fmt.Sprintf("key-%02d-%03d", thr, k)), value)
 				}
 				err := db.Write(batch, nil)
 				assert.NoError(t, err)
