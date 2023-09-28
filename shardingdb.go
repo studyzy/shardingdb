@@ -147,8 +147,8 @@ func (sdb *ShardingDb) NewIterator(slice *util.Range, ro *opt.ReadOptions) itera
 	for _, dbHandle := range sdb.dbHandles {
 		iterators = append(iterators, dbHandle.NewIterator(slice, ro))
 	}
-	//TODO Replication>1 merge data
-	miter := NewMergedIterator(iterators, comparer.DefaultComparer, true, sdb.replication, sdb.shardingFunc)
+
+	miter := NewMergedIterator(iterators, comparer.DefaultComparer, true, sdb.shardingFunc, sdb.length, sdb.replication)
 	if sdb.encryptor != nil {
 		return &encryptIterator{iter: miter, encryptor: sdb.encryptor}
 	}
@@ -588,4 +588,12 @@ func (sdb *ShardingDb) reshardingWithReplication() error {
 
 	wg.Wait()
 	return nil
+}
+func GetKeyShardingIndexes(key []byte, shardingFunc ShardingFunc, length uint16, replication uint16) []uint16 {
+	idx := shardingFunc(key, length)
+	result := make([]uint16, 0)
+	for i := uint16(0); i < replication; i++ {
+		result = append(result, (idx+i)%length)
+	}
+	return result
 }

@@ -46,6 +46,7 @@ type mergedIterator struct {
 	releaser util.Releaser
 
 	shardingFunc ShardingFunc
+	length       uint16
 	replication  uint16
 }
 
@@ -158,6 +159,10 @@ func (i *mergedIterator) next() bool {
 	return true
 }
 
+func (i *mergedIterator) getKeyShardingIndex(key []byte) []uint16 {
+	return GetKeyShardingIndexes(key, i.shardingFunc, i.length, i.replication)
+}
+
 func (i *mergedIterator) Next() bool {
 	if i.dir == dirEOI || i.err != nil {
 		return false
@@ -182,6 +187,13 @@ func (i *mergedIterator) Next() bool {
 	switch {
 	case iter.Next():
 		i.keys[x] = assertKey(iter.Key())
+		idxes := i.getKeyShardingIndex(iter.Key())
+		for _, idx := range idxes {
+			if idx != uint16(x) {
+				i.iters[idx].Next()
+				i.keys[idx] = assertKey(i.iters[idx].Key())
+			}
+		}
 	case i.iterErr(iter):
 		return false
 	default:
@@ -308,7 +320,8 @@ func (i *mergedIterator) SetErrorCallback(f func(err error)) {
 // If strict is true the any 'corruption errors' (i.e errors.IsCorrupted(err) == true)
 // won't be ignored and will halt 'merged iterator', otherwise the iterator will
 // continue to the next 'input iterator'.
-func NewMergedIterator(iters []iterator.Iterator, cmp comparer.Comparer, strict bool, replication uint16, shardingFunc ShardingFunc) iterator.Iterator {
+func NewMergedIterator(iters []iterator.Iterator, cmp comparer.Comparer, strict bool,
+	shardingFunc ShardingFunc, length uint16, replication uint16) iterator.Iterator {
 	if replication <= 1 {
 		return iterator.NewMergedIterator(iters, cmp, strict)
 	}
@@ -319,5 +332,6 @@ func NewMergedIterator(iters []iterator.Iterator, cmp comparer.Comparer, strict 
 		keys:         make([][]byte, len(iters)),
 		replication:  replication,
 		shardingFunc: shardingFunc,
+		length:       length,
 	}
 }
