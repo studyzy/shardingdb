@@ -60,7 +60,7 @@ func (s ShardingTransaction) NewIterator(slice *util.Range, ro *opt.ReadOptions)
 	for idx, dbHandle := range s.txHandles {
 		iters[idx] = dbHandle.NewIterator(slice, ro)
 	}
-	miter := NewMergedIterator(iters, comparer.DefaultComparer, true, s.replication, s.shardingFunc)
+	miter := NewMergedIterator(iters, comparer.DefaultComparer, true, s.shardingFunc, s.length, s.replication)
 	if s.encryptor != nil {
 		return &encryptIterator{iter: miter, encryptor: s.encryptor}
 	}
