@@ -326,7 +326,7 @@ func BenchmarkLeveldb_Get(b *testing.B) {
 		db.Get([]byte(fmt.Sprintf("key-%03d", i)), nil)
 	}
 }
-func TestWriteBatchPerformance(t *testing.T) {
+func TestShardingDbPerformance(t *testing.T) {
 	os.RemoveAll("/data/leveldb1")
 	os.RemoveAll("/data1/leveldb2")
 	dir3 := getTempDir()
@@ -354,6 +354,8 @@ func TestWriteBatchPerformance(t *testing.T) {
 	wg.Wait()
 	fmt.Printf("ShardingDb write batch[%d] thread[%d] loop[%d] cost:%v\n", batchSize, thread, loop, time.Now().Sub(start))
 	//Test Get performance
+	wg = sync.WaitGroup{}
+	wg.Add(thread)
 	start = time.Now()
 	for i := 0; i < thread; i++ {
 		go func(thr int) {
@@ -369,6 +371,8 @@ func TestWriteBatchPerformance(t *testing.T) {
 	wg.Wait()
 	fmt.Printf("ShardingDb get batch[%d] thread[%d] loop[%d] cost:%v\n", batchSize, thread, loop, time.Now().Sub(start))
 	//Test Get not found performance
+	wg = sync.WaitGroup{}
+	wg.Add(thread)
 	start = time.Now()
 	for i := 0; i < thread; i++ {
 		go func(thr int) {
@@ -384,7 +388,7 @@ func TestWriteBatchPerformance(t *testing.T) {
 	wg.Wait()
 	fmt.Printf("ShardingDb get not found batch[%d] thread[%d] loop[%d] cost:%v\n", batchSize, thread, loop, time.Now().Sub(start))
 }
-func TestLeveldbWriteBatchPerformance(t *testing.T) {
+func TestLeveldbPerformance(t *testing.T) {
 	thread := 100
 	loop := 100
 	batchSize := 1000
@@ -410,6 +414,8 @@ func TestLeveldbWriteBatchPerformance(t *testing.T) {
 	wg.Wait()
 	fmt.Printf("Leveldb write batch[%d] thread[%d] loop[%d] cost:%v\n", batchSize, thread, loop, time.Now().Sub(start))
 	//Test Get performance
+	wg = sync.WaitGroup{}
+	wg.Add(thread)
 	start = time.Now()
 	for i := 0; i < thread; i++ {
 		go func(thr int) {
@@ -425,6 +431,8 @@ func TestLeveldbWriteBatchPerformance(t *testing.T) {
 	wg.Wait()
 	fmt.Printf("Leveldb get batch[%d] thread[%d] loop[%d] cost:%v\n", batchSize, thread, loop, time.Now().Sub(start))
 	//Test Get not found performance
+	wg = sync.WaitGroup{}
+	wg.Add(thread)
 	start = time.Now()
 	for i := 0; i < thread; i++ {
 		go func(thr int) {
