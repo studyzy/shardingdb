@@ -329,10 +329,11 @@ func BenchmarkLeveldb_Get(b *testing.B) {
 func TestWriteBatchPerformance(t *testing.T) {
 	os.RemoveAll("/data/leveldb1")
 	os.RemoveAll("/data1/leveldb2")
-	thread := 10
+	dir3 := getTempDir()
+	thread := 100
 	loop := 100
 	batchSize := 1000
-	db, _ := OpenFile([]string{"/data/leveldb1", "/data1/leveldb2"}, nil)
+	db, _ := OpenFile([]string{"/data/leveldb1", "/data1/leveldb2", dir3}, nil)
 	defer db.Close()
 	wg := sync.WaitGroup{}
 	wg.Add(thread)
@@ -352,9 +353,39 @@ func TestWriteBatchPerformance(t *testing.T) {
 	}
 	wg.Wait()
 	fmt.Printf("ShardingDb write batch[%d] thread[%d] loop[%d] cost:%v\n", batchSize, thread, loop, time.Now().Sub(start))
+	//Test Get performance
+	start = time.Now()
+	for i := 0; i < thread; i++ {
+		go func(thr int) {
+			defer wg.Done()
+			for j := 0; j < loop; j++ {
+				for k := 0; k < batchSize; k++ {
+					_, err := db.Get([]byte(fmt.Sprintf("key-%02d-%03d", thr, k)), nil)
+					assert.NoError(t, err)
+				}
+			}
+		}(i)
+	}
+	wg.Wait()
+	fmt.Printf("ShardingDb get batch[%d] thread[%d] loop[%d] cost:%v\n", batchSize, thread, loop, time.Now().Sub(start))
+	//Test Get not found performance
+	start = time.Now()
+	for i := 0; i < thread; i++ {
+		go func(thr int) {
+			defer wg.Done()
+			for j := 0; j < loop; j++ {
+				for k := 0; k < batchSize; k++ {
+					v, _ := db.Get([]byte(fmt.Sprintf("key-%02d-%03d", thr, k+batchSize)), nil)
+					assert.Nil(t, v)
+				}
+			}
+		}(i)
+	}
+	wg.Wait()
+	fmt.Printf("ShardingDb get not found batch[%d] thread[%d] loop[%d] cost:%v\n", batchSize, thread, loop, time.Now().Sub(start))
 }
 func TestLeveldbWriteBatchPerformance(t *testing.T) {
-	thread := 10
+	thread := 100
 	loop := 100
 	batchSize := 1000
 	os.RemoveAll("/data/leveldb")
@@ -378,4 +409,34 @@ func TestLeveldbWriteBatchPerformance(t *testing.T) {
 	}
 	wg.Wait()
 	fmt.Printf("Leveldb write batch[%d] thread[%d] loop[%d] cost:%v\n", batchSize, thread, loop, time.Now().Sub(start))
+	//Test Get performance
+	start = time.Now()
+	for i := 0; i < thread; i++ {
+		go func(thr int) {
+			defer wg.Done()
+			for j := 0; j < loop; j++ {
+				for k := 0; k < batchSize; k++ {
+					_, err := db.Get([]byte(fmt.Sprintf("key-%02d-%03d", thr, k)), nil)
+					assert.NoError(t, err)
+				}
+			}
+		}(i)
+	}
+	wg.Wait()
+	fmt.Printf("Leveldb get batch[%d] thread[%d] loop[%d] cost:%v\n", batchSize, thread, loop, time.Now().Sub(start))
+	//Test Get not found performance
+	start = time.Now()
+	for i := 0; i < thread; i++ {
+		go func(thr int) {
+			defer wg.Done()
+			for j := 0; j < loop; j++ {
+				for k := 0; k < batchSize; k++ {
+					v, _ := db.Get([]byte(fmt.Sprintf("key-%02d-%03d", thr, k+batchSize)), nil)
+					assert.Nil(t, v)
+				}
+			}
+		}(i)
+	}
+	wg.Wait()
+	fmt.Printf("Leveldb get not found batch[%d] thread[%d] loop[%d] cost:%v\n", batchSize, thread, loop, time.Now().Sub(start))
 }
