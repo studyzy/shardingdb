@@ -77,7 +77,7 @@ func TestPutGet(t *testing.T) {
 	assert.Nil(t, noValue)
 }
 
-func getCount(db DbHandle, print bool) int {
+func getCount(db CommonDbHandle, print bool) int {
 	iter := db.NewIterator(nil, nil)
 	count := 0
 	for iter.Next() {
