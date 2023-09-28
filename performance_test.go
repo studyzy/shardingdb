@@ -28,12 +28,26 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
+var (
+	thread      = 500
+	loop        = 100
+	batchSize   = 1000
+	valueLength = 200
+)
+
+func stringToBytesWithPadding(s string, length int) []byte {
+	result := make([]byte, length)
+	copy(result, []byte(s))
+	return result
+}
+
 func BenchmarkShardingDb_Put(b *testing.B) {
 	db := initDb(3)
 	defer db.Close()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		db.Put([]byte(fmt.Sprintf("key-%03d", i)), []byte(fmt.Sprintf("value-%03d", i)), nil)
+		value := stringToBytesWithPadding(fmt.Sprintf("value-%3d", i), valueLength)
+		db.Put([]byte(fmt.Sprintf("key-%03d", i)), value, nil)
 	}
 }
 func BenchmarkLevledb_Put(b *testing.B) {
@@ -42,14 +56,16 @@ func BenchmarkLevledb_Put(b *testing.B) {
 	defer db.Close()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		db.Put([]byte(fmt.Sprintf("key-%03d", i)), []byte(fmt.Sprintf("value-%03d", i)), nil)
+		value := stringToBytesWithPadding(fmt.Sprintf("value-%3d", i), valueLength)
+		db.Put([]byte(fmt.Sprintf("key-%03d", i)), value, nil)
 	}
 }
 func BenchmarkShardingDb_Get(b *testing.B) {
 	db := initDb(3)
 	defer db.Close()
 	for i := 0; i < 100000; i++ {
-		db.Put([]byte(fmt.Sprintf("key-%03d", i)), []byte(fmt.Sprintf("value-%03d", i)), nil)
+		value := stringToBytesWithPadding(fmt.Sprintf("value-%3d", i), valueLength)
+		db.Put([]byte(fmt.Sprintf("key-%03d", i)), value, nil)
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -61,7 +77,8 @@ func BenchmarkLeveldb_Get(b *testing.B) {
 	assert.NoError(b, err)
 	defer db.Close()
 	for i := 0; i < 100000; i++ {
-		db.Put([]byte(fmt.Sprintf("key-%03d", i)), []byte(fmt.Sprintf("value-%03d", i)), nil)
+		value := stringToBytesWithPadding(fmt.Sprintf("value-%3d", i), valueLength)
+		db.Put([]byte(fmt.Sprintf("key-%03d", i)), value, nil)
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -79,24 +96,12 @@ func BenchmarkLeveldb_Get(b *testing.B) {
 //		}
 //		return string(result)
 //	}
-func stringToBytesWithPadding(s string, length int) []byte {
-	result := make([]byte, length)
-	copy(result, []byte(s))
-	return result
-}
-
-var (
-	thread      = 500
-	loop        = 100
-	batchSize   = 1000
-	valueLength = 100
-)
 
 func TestShardingDbPerformance(t *testing.T) {
-	os.RemoveAll("/data/leveldb1")
-	os.RemoveAll("/data1/leveldb2")
+	os.RemoveAll("/data/leveldb")
+	os.RemoveAll("/data1/leveldb")
 
-	db, _ := OpenFile([]string{"/data/leveldb1", "/data1/leveldb2", getTempDir()}, nil)
+	db, _ := OpenFile([]string{"/data/leveldb", "/data1/leveldb", getTempDir()}, nil)
 	defer db.Close()
 	wg := sync.WaitGroup{}
 	wg.Add(thread)
@@ -107,8 +112,8 @@ func TestShardingDbPerformance(t *testing.T) {
 			for j := 0; j < loop; j++ {
 				batch := new(leveldb.Batch)
 				for k := 0; k < batchSize; k++ {
-					value := stringToBytesWithPadding(fmt.Sprintf("value-%3d", k), valueLength)
-					batch.Put([]byte(fmt.Sprintf("key-%02d-%03d", thr, k)), value)
+					value := stringToBytesWithPadding(fmt.Sprintf("value-%d", j*k), valueLength)
+					batch.Put([]byte(fmt.Sprintf("key-%02d-%03d-%03d", thr, j, k)), value)
 				}
 				err := db.Write(batch, nil)
 				assert.NoError(t, err)
@@ -126,7 +131,7 @@ func TestShardingDbPerformance(t *testing.T) {
 			defer wg.Done()
 			for j := 0; j < loop; j++ {
 				for k := 0; k < batchSize; k++ {
-					_, err := db.Get([]byte(fmt.Sprintf("key-%02d-%03d", thr, k)), nil)
+					_, err := db.Get([]byte(fmt.Sprintf("key-%02d-%03d-%03d", thr, j, k)), nil)
 					assert.NoError(t, err)
 				}
 			}
@@ -151,6 +156,26 @@ func TestShardingDbPerformance(t *testing.T) {
 	}
 	wg.Wait()
 	fmt.Printf("ShardingDb get not found batch[%d] thread[%d] loop[%d] cost:%v\n", batchSize, thread, loop, time.Now().Sub(start))
+	//Test delete performance
+	wg = sync.WaitGroup{}
+	wg.Add(thread)
+	start = time.Now()
+	for i := 0; i < thread; i++ {
+		go func(thr int) {
+			defer wg.Done()
+			for j := 0; j < loop; j++ {
+				for k := 0; k < batchSize; k++ {
+					if k%2 == 1 { //delete half of the data
+						err := db.Delete([]byte(fmt.Sprintf("key-%02d-%03d-%03d", thr, j, k)), nil)
+						assert.NoError(t, err)
+					}
+				}
+			}
+		}(i)
+	}
+	wg.Wait()
+	fmt.Printf("ShardingDb delete batch[%d] thread[%d] loop[%d] cost:%v\n", batchSize, thread, loop, time.Now().Sub(start))
+
 	//Test Iterator performance
 	wg = sync.WaitGroup{}
 	wg.Add(thread)
@@ -165,7 +190,7 @@ func TestShardingDbPerformance(t *testing.T) {
 				count++
 			}
 			iter.Release()
-			assert.Equal(t, batchSize, count)
+			assert.Equal(t, batchSize/2, count)
 		}(i)
 	}
 	wg.Wait()
@@ -185,8 +210,8 @@ func TestLeveldbPerformance(t *testing.T) {
 			for j := 0; j < loop; j++ {
 				batch := new(leveldb.Batch)
 				for k := 0; k < batchSize; k++ {
-					value := stringToBytesWithPadding(fmt.Sprintf("value-%3d", k), valueLength)
-					batch.Put([]byte(fmt.Sprintf("key-%02d-%03d", thr, k)), value)
+					value := stringToBytesWithPadding(fmt.Sprintf("value-%d", j*k), valueLength)
+					batch.Put([]byte(fmt.Sprintf("key-%02d-%03d-%03d", thr, j, k)), value)
 				}
 				err := db.Write(batch, nil)
 				assert.NoError(t, err)
@@ -204,7 +229,7 @@ func TestLeveldbPerformance(t *testing.T) {
 			defer wg.Done()
 			for j := 0; j < loop; j++ {
 				for k := 0; k < batchSize; k++ {
-					_, err := db.Get([]byte(fmt.Sprintf("key-%02d-%03d", thr, k)), nil)
+					_, err := db.Get([]byte(fmt.Sprintf("key-%02d-%03d-%03d", thr, j, k)), nil)
 					assert.NoError(t, err)
 				}
 			}
@@ -229,6 +254,24 @@ func TestLeveldbPerformance(t *testing.T) {
 	}
 	wg.Wait()
 	fmt.Printf("Leveldb get not found batch[%d] thread[%d] loop[%d] cost:%v\n", batchSize, thread, loop, time.Now().Sub(start))
+	//Test delete performance
+	wg = sync.WaitGroup{}
+	wg.Add(thread)
+	start = time.Now()
+	for i := 0; i < thread; i++ {
+		go func(thr int) {
+			defer wg.Done()
+			for j := 0; j < loop; j++ {
+				for k := 0; k < batchSize; k++ {
+					if k%2 == 1 { //delete half of the data
+						err := db.Delete([]byte(fmt.Sprintf("key-%02d-%03d-%03d", thr, j, k)), nil)
+						assert.NoError(t, err)
+					}
+				}
+			}
+		}(i)
+	}
+	wg.Wait()
 	//Test Iterator performance
 	wg = sync.WaitGroup{}
 	wg.Add(thread)
