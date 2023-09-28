@@ -103,3 +103,19 @@ func MurmurSharding(key []byte, max uint16) uint16 {
 
 	return uint16(h1 % uint32(max))
 }
+
+// XorSharding16 sharding function,but actually max is uint8
+// @param key
+// @param max
+// @return uint16
+func XorSharding16(key []byte, max uint16) uint16 {
+	return uint16(XorSharding(key, uint8(max)))
+}
+
+func XorSharding(key []byte, max uint8) uint8 {
+	var xorResult uint8
+	for _, b := range key {
+		xorResult ^= b
+	}
+	return xorResult % max
+}
