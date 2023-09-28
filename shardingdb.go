@@ -28,7 +28,7 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
-var _ DbHandle = (*ShardingDb)(nil)
+var _ ShardingDbHandle = (*ShardingDb)(nil)
 
 type ShardingDb struct {
 	dbHandles    []LevelDbHandle
@@ -38,6 +38,10 @@ type ShardingDb struct {
 	logger      Logger
 	encryptor   Encryptor
 	replication uint16
+}
+
+func (sdb *ShardingDb) ShardCount() uint16 {
+	return sdb.length
 }
 
 // Get get value by key
@@ -257,7 +261,7 @@ func (sdb *ShardingDb) OpenTransaction() (Transaction, error) {
 // @return error
 // Write applies the given batch to the database. If there are multiple replicas,
 // it applies the batch to all replicas concurrently and waits for all of them to complete.
-func (sdb *ShardingDb) Write(batch Batch, wo *opt.WriteOptions) error {
+func (sdb *ShardingDb) Write(batch *leveldb.Batch, wo *opt.WriteOptions) error {
 	//sdb.lock.Lock()
 	//defer sdb.lock.Unlock()
 

@@ -23,8 +23,7 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
-// DbHandle is the interface that wraps the basic methods of a leveldb.DB
-type DbHandle interface {
+type CommonDbHandle interface {
 	// Get returns the value for the given key.
 	// @param key
 	// @param ro
@@ -42,10 +41,7 @@ type DbHandle interface {
 	// @param ro
 	// @return iterator.Iterator
 	NewIterator(slice *util.Range, ro *opt.ReadOptions) iterator.Iterator
-	// GetSnapshot returns a new snapshot of the DB.
-	// @return Snapshot
-	// @return error
-	GetSnapshot() (Snapshot, error)
+
 	// GetProperty returns the value of the given property for the DB.
 	// @param name
 	// @return value
@@ -63,15 +59,12 @@ type DbHandle interface {
 	// Close closes the DB.
 	// @return error
 	Close() error
-	// OpenTransaction opens a transaction.
-	// @return Transaction
-	// @return error
-	OpenTransaction() (Transaction, error)
+
 	// Write writes the given batch to the DB.
 	// @param batch
 	// @param wo
 	// @return error
-	Write(batch Batch, wo *opt.WriteOptions) error
+	Write(batch *leveldb.Batch, wo *opt.WriteOptions) error
 	// Put sets the value for the given key.
 	// @param key
 	// @param value
@@ -90,9 +83,23 @@ type DbHandle interface {
 	// SetReadOnly sets the DB to read-only mode.
 	// @return error
 	SetReadOnly() error
+}
+
+// ShardingDbHandle is the interface that wraps the basic methods of a leveldb.DB
+type ShardingDbHandle interface {
+	CommonDbHandle
+	// GetSnapshot returns a new snapshot of the DB.
+	// @return Snapshot
+	// @return error
+	GetSnapshot() (Snapshot, error)
+	// OpenTransaction opens a transaction.
+	// @return Transaction
+	// @return error
+	OpenTransaction() (Transaction, error)
 	// Resharding resharding the DB.
 	// @return error
 	Resharding() error
+	ShardCount() uint16
 }
 
 type Transaction interface {
