@@ -21,6 +21,8 @@ import (
 	"encoding/binary"
 )
 
+type ShardingFunc func(key []byte, max uint16) uint16
+
 // Sha256Sharding sharding function
 // @param key
 // @param max

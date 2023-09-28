@@ -21,11 +21,11 @@ import "github.com/syndtr/goleveldb/leveldb"
 type ShardingBatch struct {
 	batchHandles []*leveldb.Batch
 	length       uint16
-	shardingFunc func(key []byte, max uint16) uint16
+	shardingFunc ShardingFunc
 	encryptor    Encryptor
 }
 
-func NewShardingBatch(len uint16, shardingFunc func(key []byte, max uint16) uint16, e Encryptor) *ShardingBatch {
+func NewShardingBatch(len uint16, shardingFunc ShardingFunc, e Encryptor) *ShardingBatch {
 	batches := make([]*leveldb.Batch, len)
 	for i := uint16(0); i < len; i++ {
 		batches[i] = new(leveldb.Batch)

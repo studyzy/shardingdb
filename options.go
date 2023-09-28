@@ -41,7 +41,7 @@ func WithDbPaths(paths ...string) DbOption {
 		s.length = uint16(len(dbHandles))
 	}
 }
-func WithShardingFunc(f func(key []byte, max uint16) uint16) DbOption {
+func WithShardingFunc(f ShardingFunc) DbOption {
 	return func(s *ShardingDb) {
 		s.shardingFunc = f
 	}
