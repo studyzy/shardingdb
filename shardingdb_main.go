@@ -41,7 +41,11 @@ func NewShardingDb(options ...DbOption) (*ShardingDb, error) {
 	}
 	if sdb.shardingFunc == nil {
 		sdb.Infof("shardingFunc is nil, use default sharding function")
-		sdb.shardingFunc = MurmurSharding
+		if len(sdb.dbHandles) < 255 {
+			sdb.shardingFunc = XorSharding16
+		} else {
+			sdb.shardingFunc = MurmurSharding
+		}
 	}
 	if sdb.replication > sdb.length {
 		return nil, errors.New("replication is too large")
@@ -69,7 +73,11 @@ func OpenFile(path []string, o *opt.Options) (db *ShardingDb, err error) {
 			return nil, err
 		}
 	}
-	return NewShardingDb(WithDbHandles(dbs...), WithShardingFunc(MurmurSharding))
+	shardingFunc := MurmurSharding
+	if len(path) < 255 {
+		shardingFunc = XorSharding16 //fastest sharding function
+	}
+	return NewShardingDb(WithDbHandles(dbs...), WithShardingFunc(shardingFunc))
 }
 
 // Migration changed leveldb count, reorganize all data to the new leveldb

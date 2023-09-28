@@ -327,6 +327,8 @@ func BenchmarkLeveldb_Get(b *testing.B) {
 	}
 }
 func TestWriteBatchPerformance(t *testing.T) {
+	os.RemoveAll("/data/leveldb1")
+	os.RemoveAll("/data1/leveldb2")
 	thread := 10
 	loop := 100
 	batchSize := 1000
@@ -355,6 +357,7 @@ func TestLeveldbWriteBatchPerformance(t *testing.T) {
 	thread := 10
 	loop := 100
 	batchSize := 1000
+	os.RemoveAll("/data/leveldb")
 	db, _ := leveldb.OpenFile("/data/leveldb", nil)
 	defer db.Close()
 	wg := sync.WaitGroup{}
