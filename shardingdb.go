@@ -33,7 +33,7 @@ var _ ShardingDbHandle = (*ShardingDb)(nil)
 type ShardingDb struct {
 	dbHandles    []LevelDbHandle
 	length       uint16
-	shardingFunc func(key []byte, max uint16) uint16
+	shardingFunc ShardingFunc
 	//lock         sync.RWMutex
 	logger      Logger
 	encryptor   Encryptor
@@ -147,7 +147,8 @@ func (sdb *ShardingDb) NewIterator(slice *util.Range, ro *opt.ReadOptions) itera
 	for _, dbHandle := range sdb.dbHandles {
 		iterators = append(iterators, dbHandle.NewIterator(slice, ro))
 	}
-	miter := iterator.NewMergedIterator(iterators, comparer.DefaultComparer, true)
+	//TODO Replication>1 merge data
+	miter := NewMergedIterator(iterators, comparer.DefaultComparer, true, sdb.replication, sdb.shardingFunc)
 	if sdb.encryptor != nil {
 		return &encryptIterator{iter: miter, encryptor: sdb.encryptor}
 	}
@@ -318,7 +319,7 @@ func (sdb *ShardingDb) Write(batch *leveldb.Batch, wo *opt.WriteOptions) error {
 	return nil
 }
 
-func splitBatch(batch Batch, length uint16, shardingFunc func(key []byte, max uint16) uint16, e Encryptor) (map[uint16]*leveldb.Batch, error) {
+func splitBatch(batch Batch, length uint16, shardingFunc ShardingFunc, e Encryptor) (map[uint16]*leveldb.Batch, error) {
 	shardingBath := NewShardingBatch(length, shardingFunc, e)
 	err := batch.Replay(shardingBath)
 	if err != nil {

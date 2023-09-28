@@ -94,6 +94,7 @@ func TestShardingDbPerformance(t *testing.T) {
 	for _, path := range pathList {
 		os.RemoveAll(path)
 	}
+	fmt.Printf("ShardingDb path[%v]", pathList)
 	//Test shardingdb performance
 	db, _ := OpenFile(pathList, nil)
 	testDbPerformance(t, db, "shardingdb")
@@ -122,6 +123,7 @@ func TestShardingDbReplicationPerformance(t *testing.T) {
 			return
 		}
 	}
+	fmt.Printf("Replication[2] ShardingDb path[%v]", pathList)
 	//Test shardingdb performance
 	db, _ := NewShardingDb(WithDbHandles(dbs...), WithReplication(2))
 	testDbPerformance(t, db, "Replication2ShardingDb")
@@ -136,8 +138,7 @@ func TestShardingDbReplicationPerformance(t *testing.T) {
 
 func TestLeveldbPerformance(t *testing.T) {
 	dir := getTempDir()
-	fmt.Printf("start leveldb performance test,batch[%d] thread[%d] loop[%d],Path[%s]，record count:%d\n",
-		batchSize, thread, loop, dir, batchSize*thread*loop)
+	fmt.Printf("Leveldb path[%s]", dir)
 	db, _ := leveldb.OpenFile(dir, nil)
 	testDbPerformance(t, db, "leveldb")
 	db.Close()
@@ -147,7 +148,7 @@ func TestLeveldbPerformance(t *testing.T) {
 }
 
 func testDbPerformance(t *testing.T, db CommonDbHandle, testName string) {
-	fmt.Printf("start shardingdb performance test,batch[%d] thread[%d] loop[%d],record count:%d\n",
+	fmt.Printf("start db performance test,batch[%d] thread[%d] loop[%d],record count:%d\n",
 		batchSize, thread, loop, batchSize*thread*loop)
 	wg := sync.WaitGroup{}
 	wg.Add(thread)

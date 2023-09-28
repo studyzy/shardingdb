@@ -29,7 +29,8 @@ import (
 type ShardingTransaction struct {
 	txHandles    []Transaction
 	length       uint16
-	shardingFunc func(key []byte, max uint16) uint16
+	shardingFunc ShardingFunc
+	replication  uint16
 	//lock         *sync.RWMutex
 	encryptor Encryptor
 }
@@ -59,7 +60,7 @@ func (s ShardingTransaction) NewIterator(slice *util.Range, ro *opt.ReadOptions)
 	for idx, dbHandle := range s.txHandles {
 		iters[idx] = dbHandle.NewIterator(slice, ro)
 	}
-	miter := iterator.NewMergedIterator(iters, comparer.DefaultComparer, true)
+	miter := NewMergedIterator(iters, comparer.DefaultComparer, true, s.replication, s.shardingFunc)
 	if s.encryptor != nil {
 		return &encryptIterator{iter: miter, encryptor: s.encryptor}
 	}
