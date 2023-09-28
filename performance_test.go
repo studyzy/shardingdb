@@ -144,7 +144,7 @@ func TestShardingDbPerformance(t *testing.T) {
 			defer wg.Done()
 			for j := 0; j < loop; j++ {
 				for k := 0; k < batchSize; k++ {
-					v, _ := db.Get([]byte(fmt.Sprintf("key-%02d-%03d", thr, k+batchSize)), nil)
+					v, _ := db.Get([]byte(fmt.Sprintf("key-%02d-%03d-x", thr, k)), nil)
 					assert.Nil(t, v)
 				}
 			}
@@ -179,14 +179,16 @@ func TestShardingDbPerformance(t *testing.T) {
 	for i := 0; i < thread; i++ {
 		go func(thr int) {
 			defer wg.Done()
-			r := util.BytesPrefix([]byte(fmt.Sprintf("key-%02d-", thr)))
-			iter := db.NewIterator(r, nil)
-			count := 0
-			for iter.Next() {
-				count++
+			for j := 0; j < loop; j++ {
+				r := util.BytesPrefix([]byte(fmt.Sprintf("key-%02d-%03d-", thr, j)))
+				iter := db.NewIterator(r, nil)
+				count := 0
+				for iter.Next() {
+					count++
+				}
+				iter.Release()
+				assert.Equal(t, batchSize/2, count)
 			}
-			iter.Release()
-			assert.Equal(t, batchSize/2, count)
 		}(i)
 	}
 	wg.Wait()
@@ -248,7 +250,7 @@ func TestLeveldbPerformance(t *testing.T) {
 			defer wg.Done()
 			for j := 0; j < loop; j++ {
 				for k := 0; k < batchSize; k++ {
-					v, _ := db.Get([]byte(fmt.Sprintf("key-%02d-%03d", thr, k+batchSize)), nil)
+					v, _ := db.Get([]byte(fmt.Sprintf("key-%02d-%03d-x", thr, j)), nil)
 					assert.Nil(t, v)
 				}
 			}
@@ -281,14 +283,16 @@ func TestLeveldbPerformance(t *testing.T) {
 	for i := 0; i < thread; i++ {
 		go func(thr int) {
 			defer wg.Done()
-			r := util.BytesPrefix([]byte(fmt.Sprintf("key-%02d-", thr)))
-			iter := db.NewIterator(r, nil)
-			count := 0
-			for iter.Next() {
-				count++
+			for j := 0; j < loop; j++ {
+				r := util.BytesPrefix([]byte(fmt.Sprintf("key-%02d-%03d-", thr, j)))
+				iter := db.NewIterator(r, nil)
+				count := 0
+				for iter.Next() {
+					count++
+				}
+				iter.Release()
+				assert.Equal(t, batchSize/2, count)
 			}
-			iter.Release()
-			assert.Equal(t, batchSize, count)
 		}(i)
 	}
 	wg.Wait()
