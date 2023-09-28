@@ -18,7 +18,9 @@ package shardingdb
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -86,23 +88,16 @@ func BenchmarkLeveldb_Get(b *testing.B) {
 	}
 }
 
-// const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-//
-//	func randomString(seed int64, length int) string {
-//		rand.Seed(seed)
-//		result := make([]byte, length)
-//		for i := range result {
-//			result[i] = charset[rand.Intn(len(charset))]
-//		}
-//		return string(result)
-//	}
-
 func TestShardingDbPerformance(t *testing.T) {
-	os.RemoveAll("/data/leveldb")
-	os.RemoveAll("/data1/leveldb")
 
-	db, _ := OpenFile([]string{"/data/leveldb", "/data1/leveldb", getTempDir()}, nil)
-	defer db.Close()
+	pathList := []string{"/data/leveldb", "/data1/leveldb", getTempDir()}
+	//remove all folder
+	for _, path := range pathList {
+		os.RemoveAll(path)
+	}
+
+	db, _ := OpenFile(pathList, nil)
+	fmt.Printf("start test shardingdb performance test,batch[%d] thread[%d] loop[%d],shardingdb length[%d]\n", batchSize, thread, loop, db.length)
 	wg := sync.WaitGroup{}
 	wg.Add(thread)
 	start := time.Now()
@@ -195,12 +190,17 @@ func TestShardingDbPerformance(t *testing.T) {
 	}
 	wg.Wait()
 	fmt.Printf("ShardingDb iterator batch[%d] thread[%d] loop[%d] cost:%v\n", batchSize, thread, loop, time.Now().Sub(start))
+	db.Close()
+	//Print every folder size
+	for _, path := range pathList {
+		size, _ := folderSize(path)
+		fmt.Printf("Folder[%s] size:%d\n", path, size)
+	}
 }
 func TestLeveldbPerformance(t *testing.T) {
 	dir := getTempDir()
 	fmt.Println(dir)
 	db, _ := leveldb.OpenFile(dir, nil)
-	defer db.Close()
 	wg := sync.WaitGroup{}
 	wg.Add(thread)
 	start := time.Now()
@@ -291,4 +291,21 @@ func TestLeveldbPerformance(t *testing.T) {
 	}
 	wg.Wait()
 	fmt.Printf("Leveldb iterator batch[%d] thread[%d] loop[%d] cost:%v\n", batchSize, thread, loop, time.Now().Sub(start))
+	db.Close()
+	//Print  folder size
+	size, _ := folderSize(dir)
+	fmt.Printf("Folder[%s] size:%d\n", dir, size)
+}
+func folderSize(path string) (int64, error) {
+	var size int64
+	err := filepath.Walk(path, func(_ string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			size += info.Size()
+		}
+		return nil
+	})
+	return size, err
 }

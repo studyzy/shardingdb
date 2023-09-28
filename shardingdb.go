@@ -34,10 +34,10 @@ type ShardingDb struct {
 	dbHandles    []LevelDbHandle
 	length       uint16
 	shardingFunc func(key []byte, max uint16) uint16
-	lock         sync.RWMutex
-	logger       Logger
-	encryptor    Encryptor
-	replication  uint16
+	//lock         sync.RWMutex
+	logger      Logger
+	encryptor   Encryptor
+	replication uint16
 }
 
 // Get get value by key
@@ -220,8 +220,8 @@ func (sdb *ShardingDb) SizeOf(ranges []util.Range) (leveldb.Sizes, error) {
 // Close close all db
 // @return error
 func (sdb *ShardingDb) Close() error {
-	sdb.lock.Lock()
-	defer sdb.lock.Unlock()
+	//sdb.lock.Lock()
+	//defer sdb.lock.Unlock()
 	for _, dbHandle := range sdb.dbHandles {
 		if err := dbHandle.Close(); err != nil {
 			return err
@@ -234,7 +234,7 @@ func (sdb *ShardingDb) Close() error {
 // @return Transaction
 // @return error
 func (sdb *ShardingDb) OpenTransaction() (Transaction, error) {
-	sdb.lock.Lock()
+	//sdb.lock.Lock()
 	allTx := make([]Transaction, sdb.length)
 	for idx, dbHandle := range sdb.dbHandles {
 		tx, err := dbHandle.OpenTransaction()
@@ -243,7 +243,12 @@ func (sdb *ShardingDb) OpenTransaction() (Transaction, error) {
 		}
 		allTx[idx] = tx
 	}
-	return ShardingTransaction{txHandles: allTx, length: sdb.length, shardingFunc: sdb.shardingFunc, lock: &sdb.lock}, nil
+	return ShardingTransaction{
+		txHandles:    allTx,
+		length:       sdb.length,
+		shardingFunc: sdb.shardingFunc,
+		//lock: &sdb.lock,
+	}, nil
 }
 
 // Write write batch
@@ -253,8 +258,8 @@ func (sdb *ShardingDb) OpenTransaction() (Transaction, error) {
 // Write applies the given batch to the database. If there are multiple replicas,
 // it applies the batch to all replicas concurrently and waits for all of them to complete.
 func (sdb *ShardingDb) Write(batch Batch, wo *opt.WriteOptions) error {
-	sdb.lock.Lock()
-	defer sdb.lock.Unlock()
+	//sdb.lock.Lock()
+	//defer sdb.lock.Unlock()
 
 	// Split batch into multiple batches
 	batches, err := splitBatch(batch, sdb.length, sdb.shardingFunc, sdb.encryptor)
@@ -326,8 +331,8 @@ func splitBatch(batch Batch, length uint16, shardingFunc func(key []byte, max ui
 // Put writes the given key-value pair to the database. If there are multiple replicas,
 // it writes the key-value pair to all replicas concurrently and waits for all of them to complete.
 func (sdb *ShardingDb) Put(key, value []byte, wo *opt.WriteOptions) error {
-	sdb.lock.Lock()
-	defer sdb.lock.Unlock()
+	//sdb.lock.Lock()
+	//defer sdb.lock.Unlock()
 	dbIndex := sdb.shardingFunc(key, sdb.length)
 
 	if sdb.replication <= 1 {
@@ -375,8 +380,8 @@ func (sdb *ShardingDb) Put(key, value []byte, wo *opt.WriteOptions) error {
 // Delete removes the given key from the database. If there are multiple replicas,
 // it removes the key from all replicas concurrently and waits for all of them to complete.
 func (sdb *ShardingDb) Delete(key []byte, wo *opt.WriteOptions) error {
-	sdb.lock.Lock()
-	defer sdb.lock.Unlock()
+	//sdb.lock.Lock()
+	//defer sdb.lock.Unlock()
 	dbIndex := sdb.shardingFunc(key, sdb.length)
 
 	if sdb.replication <= 1 {
@@ -421,8 +426,8 @@ func (sdb *ShardingDb) Delete(key []byte, wo *opt.WriteOptions) error {
 // @param r
 // @return error
 func (sdb *ShardingDb) CompactRange(r util.Range) error {
-	sdb.lock.Lock()
-	defer sdb.lock.Unlock()
+	//sdb.lock.Lock()
+	//defer sdb.lock.Unlock()
 	for _, dbHandle := range sdb.dbHandles {
 		if err := dbHandle.CompactRange(r); err != nil {
 			return err
@@ -463,8 +468,8 @@ func (sdb *ShardingDb) Infof(msg string, a ...interface{}) {
 // Resharding changed leveldb count, reorganize all data in the original leveldb
 // @return error
 func (sdb *ShardingDb) Resharding() error {
-	sdb.lock.Lock()
-	defer sdb.lock.Unlock()
+	//sdb.lock.Lock()
+	//defer sdb.lock.Unlock()
 	if sdb.replication > 1 {
 		return sdb.reshardingWithReplication()
 	}

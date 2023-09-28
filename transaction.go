@@ -18,7 +18,6 @@ package shardingdb
 
 import (
 	"errors"
-	"sync"
 
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/comparer"
@@ -31,8 +30,8 @@ type ShardingTransaction struct {
 	txHandles    []Transaction
 	length       uint16
 	shardingFunc func(key []byte, max uint16) uint16
-	lock         *sync.RWMutex
-	encryptor    Encryptor
+	//lock         *sync.RWMutex
+	encryptor Encryptor
 }
 
 func (s ShardingTransaction) Get(key []byte, ro *opt.ReadOptions) ([]byte, error) {
@@ -101,7 +100,7 @@ func (s ShardingTransaction) Write(b *leveldb.Batch, wo *opt.WriteOptions) error
 }
 
 func (s ShardingTransaction) Commit() error {
-	defer s.lock.Unlock()
+	//defer s.lock.Unlock()
 	if len(s.txHandles) == 0 {
 		return errors.New("no transaction to commit")
 	}
@@ -115,7 +114,7 @@ func (s ShardingTransaction) Commit() error {
 }
 
 func (s ShardingTransaction) Discard() {
-	defer s.lock.Unlock()
+	//defer s.lock.Unlock()
 	for _, dbHandle := range s.txHandles {
 		dbHandle.Discard()
 	}

@@ -85,8 +85,8 @@ func OpenFile(path []string, o *opt.Options) (db *ShardingDb, err error) {
 // @param sdb
 // @return error
 func Migration(dbReaders []LevelDbHandle, sdb *ShardingDb) error {
-	sdb.lock.Lock()
-	defer sdb.lock.Unlock()
+	//sdb.lock.Lock()
+	//defer sdb.lock.Unlock()
 	wg := sync.WaitGroup{}
 	for i, dbHandle := range dbReaders {
 		wg.Add(1)
