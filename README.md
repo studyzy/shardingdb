@@ -134,23 +134,27 @@ Test case: total 1000000 key-value pairs, 100 go routines, 100 key-value pairs p
 
 
 ### 6. Sharding count compare
+run command:
+```bash
+go test  -timeout 60m -run "TestCompareShardingCountPerformance"
+```
 
 #### 6.1 PutData
-| Data Size | ShardingDB(3 folders) | ShardingDB(6 folders) | ShardingDB(9 folders) | ShardingDB(30 folders) | ShardingDB(60 folders)  |
-|:---------:|:---------------------:|:---------------------:|:---------------------:|:----------------------:|:-----------------------:|
-|   100B    |        0.659s         |        0.581s         |                       |                        |                         |
-|   200B    |         1.07s         |        0.683s         |                       |                        |                         |
-|   500B    |         3.36s         |         1.49s         |                       |                        |                         |
-|    1KB    |         9.42s         |         3.74s         |                       |                        |                         |
-|   10KB    |         351s          |         123s          |                       |                        |                         |
+| Data Size | ShardingDB(3 folders) | ShardingDB(6 folders) | ShardingDB(9 folders) | ShardingDB(30 folders) | ShardingDB(60 folders) |
+|:---------:|:---------------------:|:---------------------:|:---------------------:|:----------------------:|:----------------------:|
+|   100B    |        0.659s         |        0.581s         |        0.506s         |         0.564s         |         0.728s         |
+|   200B    |         1.07s         |        0.683s         |        0.624s         |         0.685s         |         0.782s         |
+|   500B    |         3.36s         |         1.49s         |         1.20s         |         1.18s          |         1.21s          |
+|    1KB    |         9.42s         |         3.74s         |         2.33s         |         1.92s          |         1.96s          |
+|   10KB    |         351s          |         123s          |          54s          |          26s           |         18.2s          |
 #### 6.2 GetData
 | Data Size | ShardingDB(3 folders) | ShardingDB(6 folders) | ShardingDB(9 folders) | ShardingDB(30 folders) | ShardingDB(60 folders) |
 |:---------:|:---------------------:|:---------------------:|:---------------------:|:----------------------:|:----------------------:|
-|   100B    |         1.25s         |         1.02s         |                       |                        |                        |
-|   200B    |         1.42s         |         1.27s         |                       |                        |                        |
-|   500B    |         1.91s         |         1.62s         |                       |                        |                        |
-|    1KB    |         2.37s         |         2.26s         |                       |                        |                        |
-|   10KB    |         9.54s         |         11.03s        |                       |                        |                        |
+|   100B    |         1.25s         |         1.02s         |         1.03s         |         0.343s         |         0.366s         |
+|   200B    |         1.42s         |         1.27s         |         1.01s         |         0.66s          |         0.373s         |
+|   500B    |         1.91s         |         1.62s         |         1.21s         |         0.96s          |         1.34s          |
+|    1KB    |         2.37s         |         2.26s         |         1.83s         |         1.18s          |         1.19s          |
+|   10KB    |         9.54s         |        11.03s         |         7.67s         |          4.8s          |          3.4s          |
 
 
 Most interfaces are the same as [goleveldb](https://github.com/syndtr/goleveldb). For my interface definition, please refer to [DbHandle](https://github.com/studyzy/shardingdb/blob/main/interfaces.go).
