@@ -97,7 +97,17 @@ func TestCompareDbPerformance(t *testing.T) {
 		TestShardingDbEncryptPerformance(t)
 	}
 }
-
+func TestCompareShardingCountPerformance(t *testing.T) {
+	sizes := []int{100, 200, 500, 1024, 10240}
+	shardingCount := []int{9, 30, 60}
+	for _, size := range sizes {
+		valueLength = size
+		for _, count := range shardingCount {
+			diskCount = count
+			TestShardingNDbPerformance(t)
+		}
+	}
+}
 func TestShardingDbPerformance(t *testing.T) {
 	pathList := []string{"/data/leveldb", "/data1/leveldb", getTempDir()}
 	//remove all folder
@@ -117,6 +127,37 @@ func TestShardingDbPerformance(t *testing.T) {
 	}
 }
 
+var diskCount = 6
+
+func TestShardingNDbPerformance(t *testing.T) {
+	var pathList []string
+	for i := 0; i < diskCount; i++ {
+		pathList = append(pathList, fmt.Sprintf("/data/leveldb%d", i))
+		i++
+		pathList = append(pathList, fmt.Sprintf("/data1/leveldb%d", i))
+		i++
+		pathList = append(pathList, getTempDir())
+	}
+	//remove all folder
+	for _, path := range pathList {
+		os.RemoveAll(path)
+	}
+	fmt.Printf("ShardingDb path[%v]", pathList)
+	//Test shardingdb performance
+	db, _ := OpenFile(pathList, nil)
+	testDbPerformance(t, db, fmt.Sprintf("shardingdb%d", diskCount))
+	db.Close()
+
+	//Print every folder size
+	for _, path := range pathList {
+		size, _ := folderSize(path)
+		fmt.Printf("Folder[%s] size:%d\n", path, size)
+	}
+	//delete folder
+	for _, path := range pathList {
+		os.RemoveAll(path)
+	}
+}
 func TestSharding6DbPerformance(t *testing.T) {
 	pathList := []string{"/data/leveldb", "/data1/leveldb", "/data/leveldb1", "/data1/leveldb1", getTempDir(), getTempDir()}
 	//remove all folder
