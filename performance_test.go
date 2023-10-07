@@ -33,7 +33,7 @@ import (
 var (
 	thread      = 100
 	loop        = 100
-	batchSize   = 1000
+	batchSize   = 100
 	valueLength = 200
 )
 
@@ -107,8 +107,8 @@ func TestShardingDbPerformance(t *testing.T) {
 	}
 }
 
-func TestShardingDbReplicationPerformance(t *testing.T) {
-	pathList := []string{"/data/leveldb", "/data/leveldb1", "/data1/leveldb", "/data1/leveldb1", getTempDir(), getTempDir()}
+func TestShardingDbEncryptPerformance(t *testing.T) {
+	pathList := []string{getTempDir(), getTempDir(), getTempDir(), getTempDir()}
 	var err error
 	dbs := make([]LevelDbHandle, len(pathList))
 	for i := 0; i < len(pathList); i++ {
@@ -123,10 +123,11 @@ func TestShardingDbReplicationPerformance(t *testing.T) {
 			return
 		}
 	}
-	fmt.Printf("Replication[2] ShardingDb path[%v]", pathList)
+	fmt.Printf("Encrypt ShardingDb path[%v]", pathList)
 	//Test shardingdb performance
-	db, _ := NewShardingDb(WithDbHandles(dbs...), WithReplication(2))
-	testDbPerformance(t, db, "Replication2ShardingDb")
+	db, _ := NewShardingDb(WithDbHandles(dbs...),
+		WithEncryptor(NewAESCryptor([]byte("1234567890123456"))))
+	testDbPerformance(t, db, "EncryptShardingDb")
 	db.Close()
 
 	//Print every folder size

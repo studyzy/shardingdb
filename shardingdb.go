@@ -35,9 +35,8 @@ type ShardingDb struct {
 	length       uint16
 	shardingFunc ShardingFunc
 	//lock         sync.RWMutex
-	logger      Logger
-	encryptor   Encryptor
-	replication uint16
+	logger    Logger
+	encryptor Encryptor
 }
 
 func (sdb *ShardingDb) ShardCount() uint16 {
@@ -51,45 +50,8 @@ func (sdb *ShardingDb) ShardCount() uint16 {
 // @return err
 func (sdb *ShardingDb) Get(key []byte, ro *opt.ReadOptions) (value []byte, err error) {
 	dbIndex := sdb.shardingFunc(key, sdb.length)
-	// 1 data replication, no need to merge
-	if sdb.replication <= 1 {
-		return sdb.get(sdb.dbHandles[dbIndex], key, ro)
-	}
 
-	// 2 or more data replication, merge data
-	resultChan := make(chan []byte, sdb.replication)
-	errChan := make(chan error, sdb.replication)
-
-	// get data from different db
-	for i := uint16(0); i < sdb.replication; i++ {
-		go func(index uint16) {
-			res, err := sdb.get(sdb.dbHandles[(dbIndex+index)%sdb.length], key, ro)
-			if err != nil {
-				errChan <- err
-			} else {
-				resultChan <- res
-			}
-		}(i)
-	}
-
-	// merge data
-	successCount := uint16(0)
-	errorCount := uint16(0)
-	for {
-		select {
-		case res := <-resultChan:
-			successCount++
-			if successCount == 1 {
-				value = res
-				return
-			}
-		case err = <-errChan:
-			errorCount++
-			if errorCount == sdb.replication {
-				return
-			}
-		}
-	}
+	return sdb.get(sdb.dbHandles[dbIndex], key, ro)
 }
 
 // Has checks if the given key exists in the database. If there are multiple replicas,
@@ -102,40 +64,8 @@ func (sdb *ShardingDb) Get(key []byte, ro *opt.ReadOptions) (value []byte, err e
 func (sdb *ShardingDb) Has(key []byte, ro *opt.ReadOptions) (ret bool, err error) {
 	dbIndex := sdb.shardingFunc(key, sdb.length)
 
-	if sdb.replication <= 1 {
-		return sdb.dbHandles[dbIndex].Has(key, ro)
-	}
+	return sdb.dbHandles[dbIndex].Has(key, ro)
 
-	// Create channels to receive results and errors
-	resultChan := make(chan bool, sdb.replication)
-	errChan := make(chan error, sdb.replication)
-
-	// Concurrently check for the key in all replicas
-	for i := uint16(0); i < sdb.replication; i++ {
-		go func(index uint16) {
-			has, err := sdb.dbHandles[(dbIndex+index)%sdb.length].Has(key, ro)
-			if err != nil {
-				errChan <- err
-			} else {
-				resultChan <- has
-			}
-		}(i)
-	}
-
-	// Wait for the first successful result or errors from all replicas
-	errorCount := uint16(0)
-	for {
-		select {
-		case has := <-resultChan:
-			ret = has
-			return
-		case err = <-errChan:
-			errorCount++
-			if errorCount == sdb.replication {
-				return
-			}
-		}
-	}
 }
 
 // NewIterator create a new iterator
@@ -148,7 +78,7 @@ func (sdb *ShardingDb) NewIterator(slice *util.Range, ro *opt.ReadOptions) itera
 		iterators = append(iterators, dbHandle.NewIterator(slice, ro))
 	}
 
-	miter := NewMergedIterator(iterators, comparer.DefaultComparer, true, sdb.shardingFunc, sdb.length, sdb.replication)
+	miter := iterator.NewMergedIterator(iterators, comparer.DefaultComparer, true)
 	if sdb.encryptor != nil {
 		return &encryptIterator{iter: miter, encryptor: sdb.encryptor}
 	}
@@ -272,51 +202,14 @@ func (sdb *ShardingDb) Write(batch *leveldb.Batch, wo *opt.WriteOptions) error {
 		return err
 	}
 
-	if sdb.replication <= 1 {
-		// Write batches to different txHandles
-		for idx, b := range batches {
-			if err := sdb.dbHandles[idx].Write(b, wo); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-
-	// Create a channel to receive errors
-	errChan := make(chan error, sdb.replication*sdb.length)
-
-	// Concurrently apply the batch to all replicas
-	var wg sync.WaitGroup
-
-	for batchIdx, b := range batches {
-		for repI := uint16(0); repI < sdb.replication; repI++ {
-			wg.Add(1)
-			go func(index uint16, batch *leveldb.Batch) {
-				defer wg.Done()
-				err := sdb.dbHandles[index].Write(batch, wo)
-				errChan <- err
-			}((batchIdx+repI)%sdb.length, b)
+	// Write batches to different txHandles
+	for idx, b := range batches {
+		if err := sdb.dbHandles[idx].Write(b, wo); err != nil {
+			return err
 		}
 	}
-
-	// Wait for all replicas to complete
-	wg.Wait()
-	close(errChan)
-
-	// Check for errors from the replicas
-	errors := make([]error, 0)
-	for err := range errChan {
-		if err != nil {
-			errors = append(errors, err)
-		}
-	}
-
-	// If all replicas return errors, return an error
-	if len(errors) == int(sdb.replication*sdb.length) {
-		return fmt.Errorf("Write operation failed on all replicas since: %v", errors)
-	}
-
 	return nil
+
 }
 
 func splitBatch(batch Batch, length uint16, shardingFunc ShardingFunc, e Encryptor) (map[uint16]*leveldb.Batch, error) {
@@ -340,42 +233,8 @@ func (sdb *ShardingDb) Put(key, value []byte, wo *opt.WriteOptions) error {
 	//defer sdb.lock.Unlock()
 	dbIndex := sdb.shardingFunc(key, sdb.length)
 
-	if sdb.replication <= 1 {
-		return sdb.put(sdb.dbHandles[dbIndex], key, value, wo)
-	}
+	return sdb.put(sdb.dbHandles[dbIndex], key, value, wo)
 
-	// Create a channel to receive errors
-	errChan := make(chan error, sdb.replication)
-
-	// Concurrently write the key-value pair to all replicas
-	var wg sync.WaitGroup
-	for i := uint16(0); i < sdb.replication; i++ {
-		wg.Add(1)
-		go func(index uint16) {
-			defer wg.Done()
-			err := sdb.put(sdb.dbHandles[(dbIndex+index)%sdb.length], key, value, wo)
-			errChan <- err
-		}(i)
-	}
-
-	// Wait for all replicas to complete
-	wg.Wait()
-	close(errChan)
-
-	// Check for errors from the replicas
-	errors := make([]error, 0)
-	for err := range errChan {
-		if err != nil {
-			errors = append(errors, err)
-		}
-	}
-
-	// If all replicas return errors, return an error
-	if len(errors) == int(sdb.replication) {
-		return fmt.Errorf("Put operation failed on all replicas since: %v", errors)
-	}
-
-	return nil
 }
 
 // Delete delete key
@@ -389,42 +248,8 @@ func (sdb *ShardingDb) Delete(key []byte, wo *opt.WriteOptions) error {
 	//defer sdb.lock.Unlock()
 	dbIndex := sdb.shardingFunc(key, sdb.length)
 
-	if sdb.replication <= 1 {
-		return sdb.dbHandles[dbIndex].Delete(key, wo)
-	}
+	return sdb.dbHandles[dbIndex].Delete(key, wo)
 
-	// Create a channel to receive errors
-	errChan := make(chan error, sdb.replication)
-
-	// Concurrently delete the key from all replicas
-	var wg sync.WaitGroup
-	for i := uint16(0); i < sdb.replication; i++ {
-		wg.Add(1)
-		go func(index uint16) {
-			defer wg.Done()
-			err := sdb.dbHandles[(dbIndex+index)%sdb.length].Delete(key, wo)
-			errChan <- err
-		}(i)
-	}
-
-	// Wait for all replicas to complete
-	wg.Wait()
-	close(errChan)
-
-	// Check for errors from the replicas
-	errors := make([]error, 0)
-	for err := range errChan {
-		if err != nil {
-			errors = append(errors, err)
-		}
-	}
-
-	// If all replicas return errors, return an error
-	if len(errors) == int(sdb.replication) {
-		return fmt.Errorf("Delete operation failed on all replicas since: %v", errors)
-	}
-
-	return nil
 }
 
 // CompactRange compact range
@@ -475,13 +300,7 @@ func (sdb *ShardingDb) Infof(msg string, a ...interface{}) {
 func (sdb *ShardingDb) Resharding() error {
 	//sdb.lock.Lock()
 	//defer sdb.lock.Unlock()
-	if sdb.replication > 1 {
-		return sdb.reshardingWithReplication()
-	}
-	return sdb.reshardingWithoutReplication()
 
-}
-func (sdb *ShardingDb) reshardingWithoutReplication() error {
 	//get all snapshots
 	snapshots := make([]Snapshot, sdb.length)
 	for idx, dbHandle := range sdb.dbHandles {
@@ -523,77 +342,4 @@ func (sdb *ShardingDb) reshardingWithoutReplication() error {
 	}
 	wg.Wait()
 	return nil
-}
-
-// reshardingWithReplication changed leveldb count or replication number, reorganize all data in the original leveldb
-// resharding will duplicate data to new db, and delete data from old db
-// @return error
-func (sdb *ShardingDb) reshardingWithReplication() error {
-	// Get all snapshots
-	snapshots := make([]Snapshot, sdb.length)
-	for idx, dbHandle := range sdb.dbHandles {
-		snapshot, err := dbHandle.GetSnapshot()
-		if err != nil {
-			return err
-		}
-		snapshots[idx] = snapshot
-	}
-
-	wg := sync.WaitGroup{}
-	for x, snapshot := range snapshots {
-		wg.Add(1)
-
-		// Concurrent resharding
-		go func(index int, dbReader Snapshot) {
-			defer wg.Done()
-			iter := dbReader.NewIterator(nil, nil)
-			sdb.Infof("Resharding db[%d]", index)
-
-			for iter.Next() {
-				key := iter.Key()
-				value := iter.Value()
-				dbIndex := sdb.shardingFunc(key, sdb.length)
-
-				sdb.Debugf("Move kv from db[%d] to db[%d]", index, dbIndex)
-				// Duplicate write data to new db
-				for i := uint16(0); i < sdb.replication; i++ {
-					wg.Add(1)
-					go func(idx uint16) {
-						defer wg.Done()
-						err := sdb.dbHandles[idx].Put(key, value, nil)
-						if err != nil {
-							iter.Release()
-							panic(err)
-						}
-					}((dbIndex + i) % sdb.length)
-				}
-				dbIndexEnd := dbIndex + sdb.replication
-				if (uint16(index) >= dbIndex && uint16(index) < dbIndexEnd) ||
-					(dbIndexEnd >= sdb.length && uint16(index) < dbIndexEnd%sdb.length) {
-					//data in new db, no need to delete
-				} else {
-					// Delete data from old db
-					if err := sdb.dbHandles[index].Delete(key, nil); err != nil {
-						iter.Release()
-						panic(err)
-					}
-				}
-			}
-
-			sdb.Infof("Resharding db[%d] finished", index)
-			iter.Release()
-			dbReader.Release()
-		}(x, snapshot)
-	}
-
-	wg.Wait()
-	return nil
-}
-func GetKeyShardingIndexes(key []byte, shardingFunc ShardingFunc, length uint16, replication uint16) []uint16 {
-	idx := shardingFunc(key, length)
-	result := make([]uint16, 0)
-	for i := uint16(0); i < replication; i++ {
-		result = append(result, (idx+i)%length)
-	}
-	return result
 }

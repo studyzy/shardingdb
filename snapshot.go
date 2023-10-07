@@ -29,7 +29,6 @@ type ShardingSnapshot struct {
 	dbHandles    []Snapshot
 	length       uint16
 	shardingFunc ShardingFunc
-	replication  uint16
 	encryptor    Encryptor
 }
 
@@ -66,7 +65,7 @@ func (s ShardingSnapshot) NewIterator(slice *util.Range, ro *opt.ReadOptions) it
 	for idx, dbHandle := range s.dbHandles {
 		iters[idx] = dbHandle.NewIterator(slice, ro)
 	}
-	miter := NewMergedIterator(iters, comparer.DefaultComparer, true, s.shardingFunc, s.length, s.replication)
+	miter := iterator.NewMergedIterator(iters, comparer.DefaultComparer, true)
 	if s.encryptor != nil {
 		return encryptIterator{iter: miter, encryptor: s.encryptor}
 	}
