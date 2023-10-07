@@ -87,6 +87,16 @@ func BenchmarkLeveldb_Get(b *testing.B) {
 		db.Get([]byte(fmt.Sprintf("key-%03d", i)), nil)
 	}
 }
+func TestCompareDbPerformance(t *testing.T) {
+	sizes := []int{100, 200, 500, 1024, 10240}
+	for _, size := range sizes {
+		valueLength = size
+		TestLeveldbPerformance(t)
+		TestShardingDbPerformance(t)
+		TestSharding6DbPerformance(t)
+		TestShardingDbEncryptPerformance(t)
+	}
+}
 
 func TestShardingDbPerformance(t *testing.T) {
 	pathList := []string{"/data/leveldb", "/data1/leveldb", getTempDir()}
@@ -107,8 +117,26 @@ func TestShardingDbPerformance(t *testing.T) {
 	}
 }
 
+func TestSharding6DbPerformance(t *testing.T) {
+	pathList := []string{"/data/leveldb", "/data1/leveldb", "/data/leveldb1", "/data1/leveldb1", getTempDir(), getTempDir()}
+	//remove all folder
+	for _, path := range pathList {
+		os.RemoveAll(path)
+	}
+	fmt.Printf("ShardingDb path[%v]", pathList)
+	//Test shardingdb performance
+	db, _ := OpenFile(pathList, nil)
+	testDbPerformance(t, db, "shardingdb")
+	db.Close()
+
+	//Print every folder size
+	for _, path := range pathList {
+		size, _ := folderSize(path)
+		fmt.Printf("Folder[%s] size:%d\n", path, size)
+	}
+}
 func TestShardingDbEncryptPerformance(t *testing.T) {
-	pathList := []string{getTempDir(), getTempDir(), getTempDir(), getTempDir()}
+	pathList := []string{"/data/leveldb", "/data1/leveldb", getTempDir()}
 	var err error
 	dbs := make([]LevelDbHandle, len(pathList))
 	for i := 0; i < len(pathList); i++ {
@@ -149,8 +177,8 @@ func TestLeveldbPerformance(t *testing.T) {
 }
 
 func testDbPerformance(t *testing.T, db CommonDbHandle, testName string) {
-	fmt.Printf("start db performance test,batch[%d] thread[%d] loop[%d],record count:%d\n",
-		batchSize, thread, loop, batchSize*thread*loop)
+	fmt.Printf("start db performance test,batch[%d] thread[%d] loop[%d],record count:%d,value size:%d\n",
+		batchSize, thread, loop, batchSize*thread*loop, valueLength)
 	wg := sync.WaitGroup{}
 	wg.Add(thread)
 	start := time.Now()
