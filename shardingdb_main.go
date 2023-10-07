@@ -47,12 +47,7 @@ func NewShardingDb(options ...DbOption) (*ShardingDb, error) {
 			sdb.shardingFunc = MurmurSharding
 		}
 	}
-	if sdb.replication > sdb.length {
-		return nil, errors.New("replication is too large")
-	}
-	if sdb.replication == 0 {
-		sdb.replication = 1
-	}
+	
 	return sdb, nil
 }
 

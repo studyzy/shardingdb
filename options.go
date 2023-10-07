@@ -58,9 +58,3 @@ func WithEncryptor(e Encryptor) DbOption {
 		s.encryptor = e
 	}
 }
-
-func WithReplication(count uint16) DbOption {
-	return func(s *ShardingDb) {
-		s.replication = count
-	}
-}

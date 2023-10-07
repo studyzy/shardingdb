@@ -59,7 +59,6 @@ func main() {
 			shardingdb.WithDbPaths(inputPathList...),
 			shardingdb.WithShardingFunc(shardingdb.MurmurSharding),
 			shardingdb.WithLogger(getLogger(logType)),
-			shardingdb.WithReplication(uint16(replication)),
 		)
 		if err != nil {
 			fmt.Println(err)
@@ -86,7 +85,6 @@ func main() {
 			shardingdb.WithDbPaths(outputPath...),
 			shardingdb.WithShardingFunc(shardingdb.MurmurSharding),
 			shardingdb.WithLogger(getLogger(logType)),
-			shardingdb.WithReplication(uint16(replication)),
 		)
 		if err != nil {
 			fmt.Println(err)
