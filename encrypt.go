@@ -24,14 +24,17 @@ import (
 
 var _ Encryptor = (*AESCryptor)(nil)
 
+// AESCryptor is a encryptor using AES
 type AESCryptor struct {
 	key []byte
 }
 
+// NewAESCryptor creates a new AESCryptor
 func NewAESCryptor(key []byte) *AESCryptor {
 	return &AESCryptor{key: key}
 }
 
+// Encrypt encrypts data with AES
 func (a *AESCryptor) Encrypt(data []byte) ([]byte, error) {
 	block, err := aes.NewCipher(a.key)
 	if err != nil {
@@ -56,6 +59,7 @@ func (a *AESCryptor) Encrypt(data []byte) ([]byte, error) {
 	return ciphertext, nil
 }
 
+// Decrypt decrypts data
 func (a *AESCryptor) Decrypt(data []byte) ([]byte, error) {
 	block, err := aes.NewCipher(a.key)
 	if err != nil {

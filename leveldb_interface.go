@@ -20,9 +20,12 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
+// LevelDbHandle is the interface that wraps the basic LevelDB methods.
 type LevelDbHandle interface {
 	CommonDbHandle
+	// GetSnapshot returns a new snapshot of the DB.
 	GetSnapshot() (*leveldb.Snapshot, error)
+	// OpenTransaction opens a transaction.
 	OpenTransaction() (*leveldb.Transaction, error)
 }
 
