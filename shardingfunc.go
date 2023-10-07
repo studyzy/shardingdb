@@ -21,6 +21,7 @@ import (
 	"encoding/binary"
 )
 
+// ShardingFunc is a function to calculate the index of db
 type ShardingFunc func(key []byte, max uint16) uint16
 
 // Sha256Sharding sharding function
@@ -114,6 +115,7 @@ func XorSharding16(key []byte, max uint16) uint16 {
 	return uint16(XorSharding(key, uint8(max)))
 }
 
+// XorSharding sharding function use XOR
 func XorSharding(key []byte, max uint8) uint8 {
 	var xorResult uint8
 	for _, b := range key {

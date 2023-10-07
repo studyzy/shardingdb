@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+// Package shardingdb provides a sharding db based on goleveldb
 package shardingdb
 
 import (
@@ -30,6 +31,7 @@ import (
 
 var _ ShardingDbHandle = (*ShardingDb)(nil)
 
+// ShardingDb is a db of multiple db
 type ShardingDb struct {
 	dbHandles    []LevelDbHandle
 	length       uint16
@@ -39,6 +41,7 @@ type ShardingDb struct {
 	encryptor Encryptor
 }
 
+// ShardCount returns the number of shards
 func (sdb *ShardingDb) ShardCount() uint16 {
 	return sdb.length
 }

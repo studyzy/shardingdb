@@ -26,6 +26,7 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
+// ShardingTransaction is a transaction of multiple db
 type ShardingTransaction struct {
 	txHandles    []Transaction
 	length       uint16
@@ -34,6 +35,7 @@ type ShardingTransaction struct {
 	encryptor Encryptor
 }
 
+// Get returns the value for the given key
 func (s ShardingTransaction) Get(key []byte, ro *opt.ReadOptions) ([]byte, error) {
 	dbIndex := s.shardingFunc(key, s.length)
 	val, err := s.txHandles[dbIndex].Get(key, ro)
@@ -49,11 +51,13 @@ func (s ShardingTransaction) Get(key []byte, ro *opt.ReadOptions) ([]byte, error
 	return val, nil
 }
 
+// Has returns whether the DB does contains the given key
 func (s ShardingTransaction) Has(key []byte, ro *opt.ReadOptions) (bool, error) {
 	dbIndex := s.shardingFunc(key, s.length)
 	return s.txHandles[dbIndex].Has(key, ro)
 }
 
+// NewIterator returns an iterator for the latest snapshot of the DB.
 func (s ShardingTransaction) NewIterator(slice *util.Range, ro *opt.ReadOptions) iterator.Iterator {
 	iters := make([]iterator.Iterator, s.length)
 	for idx, dbHandle := range s.txHandles {
@@ -66,6 +70,7 @@ func (s ShardingTransaction) NewIterator(slice *util.Range, ro *opt.ReadOptions)
 	return miter
 }
 
+// Put sets the value for the given key.
 func (s ShardingTransaction) Put(key, value []byte, wo *opt.WriteOptions) error {
 	dbIndex := s.shardingFunc(key, s.length)
 
@@ -79,11 +84,13 @@ func (s ShardingTransaction) Put(key, value []byte, wo *opt.WriteOptions) error 
 	return s.txHandles[dbIndex].Put(key, value, wo)
 }
 
+// Delete deletes the value for the given key.
 func (s ShardingTransaction) Delete(key []byte, wo *opt.WriteOptions) error {
 	dbIndex := s.shardingFunc(key, s.length)
 	return s.txHandles[dbIndex].Delete(key, wo)
 }
 
+// Write writes the given batch to the DB.
 func (s ShardingTransaction) Write(b *leveldb.Batch, wo *opt.WriteOptions) error {
 	//Split batch into multiple batches
 	batches, err := splitBatch(b, s.length, s.shardingFunc, s.encryptor)
@@ -99,6 +106,7 @@ func (s ShardingTransaction) Write(b *leveldb.Batch, wo *opt.WriteOptions) error
 	return nil
 }
 
+// Commit commits the transaction.
 func (s ShardingTransaction) Commit() error {
 	//defer s.lock.Unlock()
 	if len(s.txHandles) == 0 {
@@ -113,6 +121,7 @@ func (s ShardingTransaction) Commit() error {
 	return nil
 }
 
+// Discard discards the transaction.
 func (s ShardingTransaction) Discard() {
 	//defer s.lock.Unlock()
 	for _, dbHandle := range s.txHandles {

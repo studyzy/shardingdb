@@ -47,7 +47,6 @@ func NewShardingDb(options ...DbOption) (*ShardingDb, error) {
 			sdb.shardingFunc = MurmurSharding
 		}
 	}
-	
 	return sdb, nil
 }
 

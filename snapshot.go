@@ -25,6 +25,7 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
+// ShardingSnapshot is a snapshot of multiple db
 type ShardingSnapshot struct {
 	dbHandles    []Snapshot
 	length       uint16
@@ -32,6 +33,7 @@ type ShardingSnapshot struct {
 	encryptor    Encryptor
 }
 
+// String returns a string representation of the snapshot
 func (s ShardingSnapshot) String() string {
 	var result []string
 	for _, dbHandle := range s.dbHandles {
@@ -40,6 +42,7 @@ func (s ShardingSnapshot) String() string {
 	return strings.Join(result, ",")
 }
 
+// Get returns the value for the given key
 func (s ShardingSnapshot) Get(key []byte, ro *opt.ReadOptions) (value []byte, err error) {
 	dbIndex := s.shardingFunc(key, s.length)
 	val, err := s.dbHandles[dbIndex].Get(key, ro)
@@ -55,11 +58,13 @@ func (s ShardingSnapshot) Get(key []byte, ro *opt.ReadOptions) (value []byte, er
 	return val, nil
 }
 
+// Has returns whether the DB does contains the given key
 func (s ShardingSnapshot) Has(key []byte, ro *opt.ReadOptions) (ret bool, err error) {
 	dbIndex := s.shardingFunc(key, s.length)
 	return s.dbHandles[dbIndex].Has(key, ro)
 }
 
+// NewIterator returns an iterator for the latest snapshot of the DB
 func (s ShardingSnapshot) NewIterator(slice *util.Range, ro *opt.ReadOptions) iterator.Iterator {
 	iters := make([]iterator.Iterator, s.length)
 	for idx, dbHandle := range s.dbHandles {
@@ -72,6 +77,7 @@ func (s ShardingSnapshot) NewIterator(slice *util.Range, ro *opt.ReadOptions) it
 	return miter
 }
 
+// Release releases the snapshot
 func (s ShardingSnapshot) Release() {
 	for _, dbHandle := range s.dbHandles {
 		dbHandle.Release()

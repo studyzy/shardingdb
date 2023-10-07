@@ -252,7 +252,7 @@ func testDbPerformance(t *testing.T, db CommonDbHandle, testName string) {
 	}
 	wg.Wait()
 	fmt.Printf("%s write batch[%d] thread[%d] loop[%d] cost:%v\n",
-		testName, batchSize, thread, loop, time.Now().Sub(start))
+		testName, batchSize, thread, loop, time.Since(start))
 	//Test Get performance
 	wg = sync.WaitGroup{}
 	wg.Add(thread)
@@ -270,7 +270,7 @@ func testDbPerformance(t *testing.T, db CommonDbHandle, testName string) {
 	}
 	wg.Wait()
 	fmt.Printf("%s get batch[%d] thread[%d] loop[%d] cost:%v\n",
-		testName, batchSize, thread, loop, time.Now().Sub(start))
+		testName, batchSize, thread, loop, time.Since(start))
 	//Test Get not found performance
 	wg = sync.WaitGroup{}
 	wg.Add(thread)
@@ -288,7 +288,7 @@ func testDbPerformance(t *testing.T, db CommonDbHandle, testName string) {
 	}
 	wg.Wait()
 	fmt.Printf("%s get not found batch[%d] thread[%d] loop[%d] cost:%v\n",
-		testName, batchSize, thread, loop, time.Now().Sub(start))
+		testName, batchSize, thread, loop, time.Since(start))
 	//Test delete performance
 	wg = sync.WaitGroup{}
 	wg.Add(thread)
@@ -308,7 +308,7 @@ func testDbPerformance(t *testing.T, db CommonDbHandle, testName string) {
 	}
 	wg.Wait()
 	fmt.Printf("%s delete batch[%d] thread[%d] loop[%d] cost:%v\n",
-		testName, batchSize, thread, loop, time.Now().Sub(start))
+		testName, batchSize, thread, loop, time.Since(start))
 
 	//Test Iterator performance
 	wg = sync.WaitGroup{}
@@ -331,7 +331,7 @@ func testDbPerformance(t *testing.T, db CommonDbHandle, testName string) {
 	}
 	wg.Wait()
 	fmt.Printf("%s iterator batch[%d] thread[%d] loop[%d] cost:%v\n",
-		testName, batchSize, thread, loop, time.Now().Sub(start))
+		testName, batchSize, thread, loop, time.Since(start))
 
 }
 

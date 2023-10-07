@@ -23,6 +23,7 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
+// CommonDbHandle is the interface that wraps the basic methods of a leveldb.DB
 type CommonDbHandle interface {
 	// Get returns the value for the given key.
 	// @param key
@@ -99,24 +100,41 @@ type ShardingDbHandle interface {
 	// Resharding resharding the DB.
 	// @return error
 	Resharding() error
+	// ShardCount returns the shard count of the DB.
 	ShardCount() uint16
 }
 
+// Transaction is the interface that wraps the basic methods of a leveldb.Transaction
 type Transaction interface {
+	// Get returns the value for the given key.
 	Get(key []byte, ro *opt.ReadOptions) ([]byte, error)
+	// Has returns whether the DB does contains the given key.
 	Has(key []byte, ro *opt.ReadOptions) (bool, error)
+	// NewIterator returns an iterator for the latest snapshot of the DB.
 	NewIterator(slice *util.Range, ro *opt.ReadOptions) iterator.Iterator
+	// Put sets the value for the given key.
 	Put(key, value []byte, wo *opt.WriteOptions) error
+	// Delete deletes the value for the given key.
 	Delete(key []byte, wo *opt.WriteOptions) error
+	// Write writes the given batch to the DB.
 	Write(b *leveldb.Batch, wo *opt.WriteOptions) error
+	// Commit commits the transaction.
 	Commit() error
+	// Discard discards the transaction.
 	Discard()
 }
+
+// Snapshot is the interface that wraps the basic methods of a leveldb.Snapshot
 type Snapshot interface {
+	// String returns a string representation of the snapshot
 	String() string
+	// Get returns the value for the given key
 	Get(key []byte, ro *opt.ReadOptions) (value []byte, err error)
+	// Has returns whether the DB does contains the given key
 	Has(key []byte, ro *opt.ReadOptions) (ret bool, err error)
+	// NewIterator returns an iterator for the latest snapshot of the DB
 	NewIterator(slice *util.Range, ro *opt.ReadOptions) iterator.Iterator
+	// Release releases the snapshot
 	Release()
 }
 
@@ -146,11 +164,19 @@ type Batch interface {
 	// Reset resets the batch contents.
 	Reset()
 }
+
+// Logger is the interface that wraps the basic methods of a logger
 type Logger interface {
+	// Debug logs a debug message.
 	Debug(msg string)
+	// Info logs an info message.
 	Info(msg string)
 }
+
+// Encryptor is the interface that wraps the basic methods of a encryptor
 type Encryptor interface {
+	// Encrypt encrypts the given data.
 	Encrypt(data []byte) ([]byte, error)
+	// Decrypt decrypts the given data.
 	Decrypt(data []byte) ([]byte, error)
 }

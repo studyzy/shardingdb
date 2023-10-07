@@ -1,7 +1,7 @@
 # shardingdb
 
-This package enables LevelDB to support sharding and concurrent reads/writes, and can be used as a drop-in replacement for LevelDB.
-
+ShardingDB is an open-source, sharded database enhancing LevelDB with concurrent reads/writes support. 
+It significantly improves performance, boosting PutData by 60x and GetData by 7x, making it an ideal drop-in replacement for LevelDB.
 -----------
 
 ## Requirements
@@ -64,7 +64,7 @@ if err != nil {
     t.Fatal(err)
 }
 // Create a new sharding db
-sdb, err := NewShardingDb(Sha256Sharding, db1, db2)
+sdb, err := shardingdb.NewShardingDb(shardingdb.WithDbHandles(db1,db2), shardingdb.WithShardingFunc(MurmurSharding))
 ...
 ```
 
@@ -80,57 +80,57 @@ generate data by command:
 go test -timeout 60m -run "TestCompareDbPerformance"
 ```
 Test case: total 1000000 key-value pairs, 100 go routines, 100 key-value pairs per batch.
-
+result means the time cost(second) of the whole operation.
 ### 1. PutData
 
 | Data Size | LevelDB | ShardingDB(3 folders) | ShardingDB(6 folders) | ShardingDB(encrypt 3 folders) |
 |:---------:|:-------:|:---------------------:|:---------------------:|:-----------------------------:|
-|   100B    |  2.27s  |        0.659s         |        0.581s         |            0.953s             |
-|   200B    |  4.45s  |         1.07s         |        0.683s         |             1.9s              |
-|   500B    |  15.3s  |         3.36s         |         1.49s         |             6.4s              |
-|    1KB    |  48.9s  |         9.42s         |         3.74s         |            17.69s             |
-|   10KB    |  1117s  |         351s          |         123s          |             308s              |
+|   100B    |  2.27  |        0.659         |        0.581         |            0.953             |
+|   200B    |  4.45  |         1.07         |        0.683         |             1.9              |
+|   500B    |  15.3  |         3.36         |         1.49         |             6.4              |
+|    1KB    |  48.9  |         9.42         |         3.74         |            17.69             |
+|   10KB    |  1117  |         351          |         123          |             308              |
 
 ### 2. GetData
 
 | Data Size | LevelDB | ShardingDB(3 folders) | ShardingDB(6 folders) | ShardingDB(encrypt 3 folders) |
 |:---------:|:-------:|:---------------------:|:---------------------:|:-----------------------------:|
-|   100B    |  2.23s  |         1.25s         |         1.02s         |             1.86s             |
-|   200B    |  3.09s  |         1.42s         |         1.27s         |             2.24s             |
-|   500B    |  4.17s  |         1.91s         |         1.62s         |             3.73s             |
-|    1KB    |  7.97s  |         2.37s         |         2.26s         |             4.53s             |
-|   10KB    | 12.75s  |         9.54s         |        11.03s         |            13.85s             |
+|   100B    |  2.23  |         1.25         |         1.02         |             1.86             |
+|   200B    |  3.09  |         1.42         |         1.27         |             2.24             |
+|   500B    |  4.17  |         1.91         |         1.62         |             3.73             |
+|    1KB    |  7.97  |         2.37         |         2.26         |             4.53             |
+|   10KB    | 12.75  |         9.54         |        11.03         |            13.85             |
 
 ### 3. GetData not found
 
 | Data Size | LevelDB | ShardingDB(3 folders) | ShardingDB(6 folders) | ShardingDB(encrypt 3 folders) |
 |:---------:|:-------:|:---------------------:|:---------------------:|:-----------------------------:|
-|   100B    |  2.14s  |         1.36s         |         0.87s         |             1.43s             |
-|   200B    |  2.07s  |         1.47s         |         0.9s          |             1.6s              |
-|   500B    |  2.05s  |         1.51s         |         0.93s         |             1.81s             |
-|    1KB    |  2.35s  |         1.64s         |        0.891s         |             2.28s             |
-|   10KB    |  8.68s  |         5.56s         |         2.48s         |             7.75s             |
+|   100B    |  2.14  |         1.36         |         0.87         |             1.43             |
+|   200B    |  2.07  |         1.47         |         0.9          |             1.6              |
+|   500B    |  2.05  |         1.51         |         0.93         |             1.81             |
+|    1KB    |  2.35  |         1.64         |        0.891         |             2.28             |
+|   10KB    |  8.68  |         5.56         |         2.48         |             7.75             |
 
 
 ### 4. DeleteData
 
 | Data Size | LevelDB | ShardingDB(3 folders) | ShardingDB(6 folders) | ShardingDB(encrypt 3 folders) |
 |:---------:|:-------:|:---------------------:|:---------------------:|:-----------------------------:|
-|   100B    |  3.82s  |         2.76s         |         1.02s         |             1.72s             |
-|   200B    |  3.81s  |         1.71s         |         1.02s         |             1.74s             |
-|   500B    |  3.85s  |         1.76s         |         1.05s         |             1.69s             |
-|    1KB    |  3.84s  |         1.72s         |         1.04s         |             1.74s             |
-|   10KB    | 3.844s  |         1.78s         |         1.06s         |             1.76s             |
+|   100B    |  3.82  |         2.76         |         1.02         |             1.72             |
+|   200B    |  3.81  |         1.71         |         1.02         |             1.74             |
+|   500B    |  3.85  |         1.76         |         1.05         |             1.69             |
+|    1KB    |  3.84  |         1.72         |         1.04         |             1.74             |
+|   10KB    | 3.844  |         1.78         |         1.06         |             1.76             |
 
 ### 5. Iterator
 
 | Data Size | LevelDB | ShardingDB(3 folders) | ShardingDB(6 folders) | ShardingDB(encrypt 3 folders) |
 |:---------:|:-------:|:---------------------:|:---------------------:|:-----------------------------:|
-|   100B    | 0.133s  |        0.184s         |        0.222s         |             0.18s             |
-|   200B    | 0.151s  |        0.246s         |        0.246s         |            0.191s             |
-|   500B    | 0.282s  |        0.351s         |         0.41s         |            0.344s             |
-|    1KB    | 0.514s  |        0.419s         |        0.472s         |            0.541s             |
-|   10KB    |  2.46s  |         2.39s         |         1.96s         |             2.3s              |
+|   100B    | 0.133  |        0.184         |        0.222         |             0.18             |
+|   200B    | 0.151  |        0.246         |        0.246         |            0.191             |
+|   500B    | 0.282  |        0.351         |         0.41         |            0.344             |
+|    1KB    | 0.514  |        0.419         |        0.472         |            0.541             |
+|   10KB    |  2.46  |         2.39         |         1.96         |             2.3              |
 
 
 ### 6. Sharding count compare
@@ -142,19 +142,19 @@ go test  -timeout 60m -run "TestCompareShardingCountPerformance"
 #### 6.1 PutData
 | Data Size | ShardingDB(3 folders) | ShardingDB(6 folders) | ShardingDB(9 folders) | ShardingDB(30 folders) | ShardingDB(60 folders) |
 |:---------:|:---------------------:|:---------------------:|:---------------------:|:----------------------:|:----------------------:|
-|   100B    |        0.659s         |        0.581s         |        0.506s         |         0.564s         |         0.728s         |
-|   200B    |         1.07s         |        0.683s         |        0.624s         |         0.685s         |         0.782s         |
-|   500B    |         3.36s         |         1.49s         |         1.20s         |         1.18s          |         1.21s          |
-|    1KB    |         9.42s         |         3.74s         |         2.33s         |         1.92s          |         1.96s          |
-|   10KB    |         351s          |         123s          |          54s          |          26s           |         18.2s          |
+|   100B    |        0.659         |        0.581         |        0.506         |         0.564         |         0.728         |
+|   200B    |         1.07         |        0.683         |        0.624         |         0.685         |         0.782         |
+|   500B    |         3.36         |         1.49         |         1.20         |         1.18          |         1.21          |
+|    1KB    |         9.42         |         3.74         |         2.33         |         1.92          |         1.96          |
+|   10KB    |         351          |         123          |          54          |          26           |         18.2          |
 #### 6.2 GetData
 | Data Size | ShardingDB(3 folders) | ShardingDB(6 folders) | ShardingDB(9 folders) | ShardingDB(30 folders) | ShardingDB(60 folders) |
 |:---------:|:---------------------:|:---------------------:|:---------------------:|:----------------------:|:----------------------:|
-|   100B    |         1.25s         |         1.02s         |         1.03s         |         0.343s         |         0.366s         |
-|   200B    |         1.42s         |         1.27s         |         1.01s         |         0.66s          |         0.373s         |
-|   500B    |         1.91s         |         1.62s         |         1.21s         |         0.96s          |         1.34s          |
-|    1KB    |         2.37s         |         2.26s         |         1.83s         |         1.18s          |         1.19s          |
-|   10KB    |         9.54s         |        11.03s         |         7.67s         |          4.8s          |          3.4s          |
+|   100B    |         1.25         |         1.02         |         1.03         |         0.343         |         0.366         |
+|   200B    |         1.42         |         1.27         |         1.01         |         0.66          |         0.373         |
+|   500B    |         1.91         |         1.62         |         1.21         |         0.96          |         1.34          |
+|    1KB    |         2.37         |         2.26         |         1.83         |         1.18          |         1.19          |
+|   10KB    |         9.54         |        11.03         |         7.67         |          4.8          |          3.4          |
 
 
 Most interfaces are the same as [goleveldb](https://github.com/syndtr/goleveldb). For my interface definition, please refer to [DbHandle](https://github.com/studyzy/shardingdb/blob/main/interfaces.go).

@@ -109,8 +109,8 @@ func TestBatchWriteAndIterator(t *testing.T) {
 	}
 	assert.Equal(t, 10, count)
 	ranges := []util.Range{
-		util.Range{Start: []byte("a"), Limit: []byte("d")},
-		util.Range{Start: []byte("x"), Limit: []byte("z")},
+		{Start: []byte("a"), Limit: []byte("d")},
+		{Start: []byte("x"), Limit: []byte("z")},
 	}
 	size, err := db.SizeOf(ranges)
 	assert.NoError(t, err)
@@ -143,8 +143,8 @@ func TestShardingDb_Resharding(t *testing.T) {
 	defer db.Close()
 	count := 0
 	for i := 0; i < 10; i++ {
-		value, err := db.Get([]byte(fmt.Sprintf("key-%03d", i)), nil)
-		if err == nil {
+		value, err1 := db.Get([]byte(fmt.Sprintf("key-%03d", i)), nil)
+		if err1 == nil {
 			count++
 			fmt.Printf("key=%s, value=%s\n", fmt.Sprintf("key-%03d", i), value)
 		}

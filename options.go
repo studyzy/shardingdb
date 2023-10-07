@@ -18,8 +18,10 @@ package shardingdb
 
 import "github.com/syndtr/goleveldb/leveldb"
 
+// DbOption is used to set options for ShardingDb
 type DbOption func(db *ShardingDb)
 
+// WithDbHandles sets dbHandles for ShardingDb
 func WithDbHandles(dbHandles ...LevelDbHandle) DbOption {
 	return func(s *ShardingDb) {
 		s.dbHandles = dbHandles
@@ -27,6 +29,7 @@ func WithDbHandles(dbHandles ...LevelDbHandle) DbOption {
 	}
 }
 
+// WithDbPaths sets dbHandles for ShardingDb
 func WithDbPaths(paths ...string) DbOption {
 	dbHandles := make([]LevelDbHandle, len(paths))
 	for i := 0; i < len(paths); i++ {
@@ -41,18 +44,22 @@ func WithDbPaths(paths ...string) DbOption {
 		s.length = uint16(len(dbHandles))
 	}
 }
+
+// WithShardingFunc sets shardingFunc for ShardingDb
 func WithShardingFunc(f ShardingFunc) DbOption {
 	return func(s *ShardingDb) {
 		s.shardingFunc = f
 	}
 }
 
+// WithLogger sets logger for ShardingDb
 func WithLogger(l Logger) DbOption {
 	return func(s *ShardingDb) {
 		s.logger = l
 	}
 }
 
+// WithEncryptor sets encryptor for ShardingDb
 func WithEncryptor(e Encryptor) DbOption {
 	return func(s *ShardingDb) {
 		s.encryptor = e

@@ -18,6 +18,7 @@ package shardingdb
 
 import "github.com/syndtr/goleveldb/leveldb"
 
+// ShardingBatch is a batch of multiple db
 type ShardingBatch struct {
 	batchHandles []*leveldb.Batch
 	length       uint16
@@ -25,6 +26,7 @@ type ShardingBatch struct {
 	encryptor    Encryptor
 }
 
+// NewShardingBatch returns a new ShardingBatch
 func NewShardingBatch(len uint16, shardingFunc ShardingFunc, e Encryptor) *ShardingBatch {
 	batches := make([]*leveldb.Batch, len)
 	for i := uint16(0); i < len; i++ {
@@ -38,6 +40,7 @@ func NewShardingBatch(len uint16, shardingFunc ShardingFunc, e Encryptor) *Shard
 	}
 }
 
+// Put sets the value for the given key
 func (s *ShardingBatch) Put(key, value []byte) {
 	dbIndex := s.shardingFunc(key, s.length)
 	if s.encryptor != nil && len(value) > 0 {
@@ -51,10 +54,13 @@ func (s *ShardingBatch) Put(key, value []byte) {
 	}
 }
 
+// Delete deletes the value for the given key
 func (s *ShardingBatch) Delete(key []byte) {
 	dbIndex := s.shardingFunc(key, s.length)
 	s.batchHandles[dbIndex].Delete(key)
 }
+
+// GetSplitBatch returns a map of db index to batch
 func (s *ShardingBatch) GetSplitBatch() map[uint16]*leveldb.Batch {
 	batches := make(map[uint16]*leveldb.Batch)
 	for idx, dbHandle := range s.batchHandles {
