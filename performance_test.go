@@ -99,7 +99,7 @@ func TestCompareDbPerformance(t *testing.T) {
 }
 func TestCompareShardingCountPerformance(t *testing.T) {
 	sizes := []int{100, 200, 500, 1024, 10240}
-	shardingCount := []int{9, 30, 60}
+	shardingCount := []int{3, 6, 9, 30, 60}
 	for _, size := range sizes {
 		valueLength = size
 		for _, count := range shardingCount {
@@ -144,7 +144,20 @@ func TestShardingNDbPerformance(t *testing.T) {
 	}
 	fmt.Printf("ShardingDb path[%v]", pathList)
 	//Test shardingdb performance
-	db, _ := OpenFile(pathList, nil)
+	dbs := make([]LevelDbHandle, len(pathList))
+	var err error
+	for i := 0; i < len(pathList); i++ {
+		dbs[i], err = leveldb.OpenFile(pathList[i], nil)
+		if err != nil {
+			//close all opened db
+			for j := 0; j < i; j++ {
+				dbs[j].Close()
+			}
+			panic(err)
+		}
+	}
+
+	db, _ := NewShardingDb(WithDbHandles(dbs...), WithShardingFunc(MurmurSharding))
 	testDbPerformance(t, db, fmt.Sprintf("shardingdb%d", diskCount))
 	db.Close()
 
