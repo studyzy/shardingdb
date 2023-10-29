@@ -206,8 +206,21 @@ func (sdb *ShardingDb) Write(batch *leveldb.Batch, wo *opt.WriteOptions) error {
 	}
 
 	// Write batches to different txHandles
+	wg := sync.WaitGroup{}
+	wg.Add(len(batches))
+	errChan := make(chan error, len(batches))
 	for idx, b := range batches {
-		if err := sdb.dbHandles[idx].Write(b, wo); err != nil {
+		go func(dbIndex uint16, b1 *leveldb.Batch) {
+			defer wg.Done()
+			if err := sdb.dbHandles[dbIndex].Write(b1, wo); err != nil {
+				errChan <- err
+			}
+		}(idx, b)
+	}
+	wg.Wait()
+	close(errChan)
+	for err := range errChan {
+		if err != nil {
 			return err
 		}
 	}
